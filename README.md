@@ -174,7 +174,7 @@ Because Antigravity IDE includes the official **Google Colab** (`google.colab`) 
 | Profile | Target Notebook | Hardware | Core Models & Sweet Spot |
 | :--- | :--- | :--- | :--- |
 | **Option 2 (Performance — Primary)** | [`notebooks/colab_ollama_mcp.ipynb`](notebooks/colab_ollama_mcp.ipynb) | **Tesla T4 (16GB VRAM)** | **`deepseek-r1:14b`** (Planning CoT) + **`qwen2.5-coder:14b` ⭐** (Coding/Workflow/Diagram). Tốn ~1.53 CU/h, dùng 3–4h/ngày suốt 30 ngày (hết ~160/192 CU). |
-| **Option 1 (Saver — Fallback)** | [`notebooks/colab_ollama_t4_saver.ipynb`](notebooks/colab_ollama_t4_saver.ipynb) | **Tesla T4 (16GB VRAM)** | **`deepseek-r1:8b`** (Planning) + **`llama3.1:8b`** (Workflow) + **`qwen2.5-coder:7b`** (Coding). Siêu nhẹ, tốc độ 65 tok/s khi CU chạm giới hạn. |
+| **Option 1 (Saver — Fallback)** | [`notebooks/colab_ollama_t4_saver.ipynb`](notebooks/colab_ollama_t4_saver.ipynb) | **Tesla T4 (16GB VRAM)** | **`deepseek-r1:8b`** (Planning) + **`llama3.1:8b`** (Workflow) + **`qwen2.5-coder:7b`** (Coding). Siêu nhẹ, tốc độ 65 tok/s, chủ động chuyển sang bất kỳ lúc nào để tiết kiệm CU. |
 | **Combo 2 (A100 Max Power)** | [`notebooks/colab_ollama_a100_max.ipynb`](notebooks/colab_ollama_a100_max.ipynb) | **NVIDIA A100 (40GB VRAM)** | **`deepseek-r1:32b`** + **`qwen2.5-coder:32b`** + **`14b`** + **`minicpm-v`**. Chạy sprint tập trung 1–1.5h (~5.38 CU/h). |
 
 #### Step 1: Open Your Chosen Notebook & Connect to a Remote Colab GPU Kernel
