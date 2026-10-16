@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "colab-ollama-mcp"
+version = "1.0.0"
+description = "Model Context Protocol (MCP) Server for Google Colab GPU-hosted Ollama LLM"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.scripts]
+colab-ollama-mcp = "colab_ollama_mcp.server:main"

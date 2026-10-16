@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Báo Cáo Tương Tác: Colab Ollama MCP — End-to-End Guide & Coding Fallback</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    .tab-content { display: none; }
+    .tab-content.active { display: block; animation: fadeIn 0.25s ease-in-out; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .flow-node { transition: all 0.2s ease; }
+    .flow-node.active-step { border-color: #3b82f6 !important; background-color: #eff6ff !important; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); }
+    .wizard-step { transition: all 0.3s ease; }
+    .wizard-step.active { border-color: #2563eb; background-color: #f8faff; }
+  </style>
+</head>
+<body class="bg-[var(--background,#f8fafc)] text-[var(--foreground,#0f172a)] antialiased p-4 md:p-8 font-sans">
+  <div class="max-w-6xl mx-auto space-y-6">
+
+    <!-- Header Banner -->
+    <header class="bg-gradient-to-r from-blue-700 via-indigo-700 to-purple-700 rounded-2xl p-6 md:p-8 text-white shadow-xl">
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <div class="inline-flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-semibold mb-3">
+            <span>🛡️ AI Coding Fallback Strategy</span>
+            <span>•</span>
+            <span>Zero-Downtime Workflow</span>
+          </div>
+          <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight">Colab Ollama MCP — Cẩm Nang Tương Tác End-to-End</h1>
+          <p class="text-blue-100 text-sm md:text-base mt-2 max-w-2xl">
+            Giải pháp dự phòng hoàn hảo: Khi Claude / OpenAI hết token hoặc chạm giới hạn (Rate Limit), chỉ cần 1 click bật Colab GPU lên để tiếp tục code xuyên suốt!
+          </p>
+        </div>
+        <div class="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 text-center min-w-[200px]">
+          <span class="text-xs text-blue-200 block uppercase font-bold tracking-wider">Mục Tiêu Trọng Tâm</span>
+          <span class="text-2xl font-black text-amber-300">Code Không Gián Đoạn</span>
+          <span class="text-xs text-emerald-300 block mt-1 font-medium">⚡ T4 / A100 GPU + MCP</span>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex flex-wrap gap-2 mt-6 pt-6 border-t border-white/20" id="tabNav">
+        <button onclick="switchTab('tab-endtoend')" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold transition bg-white text-blue-700 shadow" data-tab="tab-endtoend">
+          🚀 1. Hướng Dẫn Setup End-to-End (Action Ngay)
+        </button>
+        <button onclick="switchTab('tab-business')" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold transition bg-white/10 hover:bg-white/20 text-white" data-tab="tab-business">
+          💰 2. Business & ROI Calculator
+        </button>
+        <button onclick="switchTab('tab-vram')" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold transition bg-white/10 hover:bg-white/20 text-white" data-tab="tab-vram">
+          🧠 3. VRAM & Quantization Simulator
+        </button>
+        <button onclick="switchTab('tab-architecture')" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold transition bg-white/10 hover:bg-white/20 text-white" data-tab="tab-architecture">
+          🏛️ 4. Kiến Trúc & Luồng Dữ Liệu
+        </button>
+        <button onclick="switchTab('tab-faq')" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold transition bg-white/10 hover:bg-white/20 text-white" data-tab="tab-faq">
+          ❓ 5. Lý Thuyết Basic Vừa Đủ
+        </button>
+      </nav>
+    </header>
+
+    <!-- TAB 1: END-TO-END SETUP & CODING WORKFLOW GUIDE -->
+    <section id="tab-endtoend" class="tab-content active space-y-6">
+
+      <!-- Strategy Banner -->
+      <div class="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-5 shadow-sm">
+        <div class="flex items-start gap-4">
+          <div class="p-3 bg-amber-500 text-white rounded-xl text-2xl shadow">🎯</div>
+          <div class="space-y-1">
+            <h3 class="font-bold text-gray-900 text-base">Chiến Lược "Fallback" Khi Hết Token (Zero-Downtime Coding)</h3>
+            <p class="text-xs md:text-sm text-gray-700 leading-relaxed">
+              <strong>Kịch bản:</strong> Bạn đang dùng Claude 3.5 Sonnet hoặc GPT-4o để lập trình thì nhận thông báo: <em>"You've reached your usage limit until 3:00 PM"</em>. Thay vì phải dừng công việc, bạn chỉ cần mở Google Colab, ấn <strong>Run All</strong> (chạy ngầm mô hình <strong>Qwen 2.5 Coder</strong> trên GPU), và lập tức quay lại Cursor / Claude Desktop tiếp tục sinh code, review lỗi thông qua công cụ MCP!
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interactive 4-Step Setup Wizard -->
+      <div class="bg-[var(--card,#ffffff)] border border-[var(--border,#e2e8f0)] rounded-xl p-6 shadow-sm space-y-8">
+        
+        <div class="border-b border-gray-100 pb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+          <div>
+            <h2 class="text-xl font-extrabold text-gray-900">Quy Trình Triển Khai End-to-End (4 Bước)</h2>
+            <p class="text-xs text-gray-500">Tùy biến cấu hình theo đúng GPU & Model bạn chọn để lấy mã lệnh chuẩn nhất.</p>
+          </div>
+          <span class="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded-full">Interactive Wizard</span>
+        </div>
+
+        <!-- STEP 1: GPU Selection -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-2">
+            <span class="w-7 h-7 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs">1</span>
+            <h3 class="font-bold text-gray-900 text-base">Chọn GPU Trên Google Colab (Menu Runtime)</h3>
+          </div>
+          <p class="text-xs text-gray-600 ml-9">
+            Trong Colab, vào <strong>Runtime</strong> $\rightarrow$ <strong>Change runtime type</strong> (như trong ảnh bạn chụp). Hãy chọn GPU phù hợp:
+          </p>
+          
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 ml-9 pt-2">
+            
+            <!-- Option T4 -->
+            <label class="cursor-pointer">
+              <input type="radio" name="wizardGpu" value="T4" class="peer sr-only" checked onchange="updateWizard()">
+              <div class="border-2 border-gray-200 peer-checked:border-blue-600 peer-checked:bg-blue-50/50 rounded-xl p-4 transition space-y-2">
+                <div class="flex justify-between items-center">
+                  <span class="font-bold text-sm text-gray-900">Tesla T4 GPU (16GB)</span>
+                  <span class="text-[11px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded">Rất Tiết Kiệm</span>
+                </div>
+                <p class="text-xs text-gray-500">Tiêu hao: ~1.5 - 2 CU/giờ</p>
+                <p class="text-xs text-gray-700">⭐ <strong>Khuyên dùng cho việc TEST và code hàng ngày</strong>. Model khuyên dùng: <code>qwen2.5-coder:7b</code>.</p>
+              </div>
+            </label>
+
+            <!-- Option L4 -->
+            <label class="cursor-pointer">
+              <input type="radio" name="wizardGpu" value="L4" class="peer sr-only" onchange="updateWizard()">
+              <div class="border-2 border-gray-200 peer-checked:border-blue-600 peer-checked:bg-blue-50/50 rounded-xl p-4 transition space-y-2">
+                <div class="flex justify-between items-center">
+                  <span class="font-bold text-sm text-gray-900">NVIDIA L4 GPU (24GB)</span>
+                  <span class="text-[11px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded">Cân Bằng</span>
+                </div>
+                <p class="text-xs text-gray-500">Tiêu hao: ~3.5 - 4 CU/giờ</p>
+                <p class="text-xs text-gray-700">Kiến trúc Ada Lovelace mới nhất. Chạy cực mượt model <code>qwen2.5-coder:14b</code>.</p>
+              </div>
+            </label>
+
+            <!-- Option A100 -->
+            <label class="cursor-pointer">
+              <input type="radio" name="wizardGpu" value="A100" class="peer sr-only" onchange="updateWizard()">
+              <div class="border-2 border-gray-200 peer-checked:border-blue-600 peer-checked:bg-blue-50/50 rounded-xl p-4 transition space-y-2">
+                <div class="flex justify-between items-center">
+                  <span class="font-bold text-sm text-gray-900">NVIDIA A100 GPU (40GB)</span>
+                  <span class="text-[11px] bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded">Khủng Nhất</span>
+                </div>
+                <p class="text-xs text-gray-500">Tiêu hao: ~9 - 13 CU/giờ</p>
+                <p class="text-xs text-gray-700">Chỉ dùng khi cần chạy model <code>32B</code> hoặc <code>70B</code>. Tránh dùng để test kẻo nhanh hết CU.</p>
+              </div>
+            </label>
+
+          </div>
+        </div>
+
+        <!-- STEP 2: Model Selection -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-2">
+            <span class="w-7 h-7 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs">2</span>
+            <h3 class="font-bold text-gray-900 text-base">Chọn Model Coding Muốn Chạy</h3>
+          </div>
+          <p class="text-xs text-gray-600 ml-9">
+            Ollama hỗ trợ nhiều model coding hàng đầu. Chọn model bạn muốn tải:
+          </p>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 ml-9 pt-2">
+            
+            <label class="cursor-pointer">
+              <input type="radio" name="wizardModel" value="qwen2.5-coder:7b" class="peer sr-only" checked onchange="updateWizard()">
+              <div class="border-2 border-gray-200 peer-checked:border-blue-600 peer-checked:bg-blue-50/50 rounded-xl p-4 transition space-y-1.5">
+                <div class="font-bold text-sm text-gray-900">qwen2.5-coder:7b</div>
+                <span class="text-[11px] text-blue-700 font-bold block">4.7 GB • Tải trong ~1.5 phút</span>
+                <p class="text-xs text-gray-600">Model nhẹ, thông minh, tốc độ sinh ~40 tokens/s trên T4. Hoàn hảo để test và chữa cháy nhanh!</p>
+              </div>
+            </label>
+
+            <label class="cursor-pointer">
+              <input type="radio" name="wizardModel" value="qwen2.5-coder:14b" class="peer sr-only" onchange="updateWizard()">
+              <div class="border-2 border-gray-200 peer-checked:border-blue-600 peer-checked:bg-blue-50/50 rounded-xl p-4 transition space-y-1.5">
+                <div class="font-bold text-sm text-gray-900">qwen2.5-coder:14b</div>
+                <span class="text-[11px] text-purple-700 font-bold block">9.0 GB • Cần GPU L4 hoặc A100</span>
+                <p class="text-xs text-gray-600">Năng lực lập trình tiệm cận Claude 3.5 Sonnet. Tư duy thuật toán và debug đa file cực tốt.</p>
+              </div>
+            </label>
+
+            <label class="cursor-pointer">
+              <input type="radio" name="wizardModel" value="deepseek-r1:8b" class="peer sr-only" onchange="updateWizard()">
+              <div class="border-2 border-gray-200 peer-checked:border-blue-600 peer-checked:bg-blue-50/50 rounded-xl p-4 transition space-y-1.5">
+                <div class="font-bold text-sm text-gray-900">deepseek-r1:8b</div>
+                <span class="text-[11px] text-indigo-700 font-bold block">4.9 GB • Model Suy Luận (Reasoning)</span>
+                <p class="text-xs text-gray-600">Mô hình phân tích từng bước (Chain-of-thought), giải thích lý do cặn kẽ trước khi viết code.</p>
+              </div>
+            </label>
+
+          </div>
+        </div>
+
+        <!-- STEP 3: One-Click Colab Code -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-2">
+            <span class="w-7 h-7 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs">3</span>
+            <h3 class="font-bold text-gray-900 text-base">Chạy Đoạn Code "All-in-One" Này Trên Google Colab</h3>
+          </div>
+          <p class="text-xs text-gray-600 ml-9">
+            Tạo một ô code mới trên Colab, dán đoạn mã bên dưới vào và nhấn <strong>Play (Chạy)</strong>:
+          </p>
+
+          <div class="ml-9 border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+            <div class="bg-gray-100 px-4 py-2.5 flex justify-between items-center text-xs font-semibold text-gray-700">
+              <span id="colabSnippetTitle">🐍 Google Colab All-in-One Cell (Model: qwen2.5-coder:7b)</span>
+              <button onclick="copyCode('wizardColabCode')" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-bold transition flex items-center gap-1 shadow">
+                <span>📋 Sao chép mã Colab</span>
+              </button>
+            </div>
+            <pre class="p-4 bg-gray-950 text-emerald-400 font-mono text-xs overflow-x-auto leading-relaxed"><code id="wizardColabCode"></code></pre>
+          </div>
+        </div>
+
+        <!-- STEP 4: Connect from Local IDE -->
+        <div class="space-y-3">
+          <div class="flex items-center gap-2">
+            <span class="w-7 h-7 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs">4</span>
+            <h3 class="font-bold text-gray-900 text-base">Lấy Link Tunnel & Kết Nối Vào IDE Để Dùng</h3>
+          </div>
+          <p class="text-xs text-gray-600 ml-9">
+            Khi Colab chạy xong, nó sẽ in ra dòng: <code>🎉 TUNNEL SẴN SÀNG: https://xxxx.trycloudflare.com</code>. Hãy điền link đó vào ô dưới đây để lấy cấu hình kết nối:
+          </p>
+
+          <div class="ml-9 space-y-4">
+            <div class="flex items-center gap-2">
+              <input type="text" id="wizardTunnelInput" value="https://xxxx-your-tunnel.trycloudflare.com" placeholder="Dán link https://...trycloudflare.com vào đây" class="flex-1 p-2.5 text-xs font-mono bg-gray-50 border border-blue-400 rounded-lg focus:ring-2 focus:ring-blue-500" oninput="updateWizardSnippets()">
+            </div>
+
+            <!-- IDE Selection Tabs -->
+            <div class="border border-gray-200 rounded-xl overflow-hidden">
+              <div class="bg-gray-100 px-4 py-2 flex gap-2 border-b border-gray-200">
+                <button onclick="switchIdeTab('ide-claude')" id="btnIdeClaude" class="px-3 py-1 bg-white text-blue-700 rounded text-xs font-bold shadow-sm">Claude Desktop</button>
+                <button onclick="switchIdeTab('ide-cursor')" id="btnIdeCursor" class="px-3 py-1 bg-gray-200 text-gray-700 rounded text-xs font-bold">Cursor IDE</button>
+                <button onclick="switchIdeTab('ide-antigravity')" id="btnIdeAntigravity" class="px-3 py-1 bg-gray-200 text-gray-700 rounded text-xs font-bold">Antigravity IDE</button>
+              </div>
+
+              <!-- Claude Panel -->
+              <div id="ide-claude" class="ide-tab-panel p-4 bg-gray-950 text-xs font-mono text-gray-300 space-y-2">
+                <div class="text-gray-400 text-[11px]">Dán vào: ~/Library/Application Support/Claude/claude_desktop_config.json (macOS)</div>
+                <pre class="text-yellow-400 overflow-x-auto"><code id="codeClaude"></code></pre>
+                <button onclick="copyCode('codeClaude')" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[11px] font-bold">Sao chép JSON</button>
+              </div>
+
+              <!-- Cursor Panel -->
+              <div id="ide-cursor" class="ide-tab-panel hidden p-4 bg-gray-950 text-xs font-mono text-gray-300 space-y-2">
+                <div class="text-gray-400 text-[11px]">Vào Cursor Settings -> Features -> MCP Servers -> Add New MCP Server:</div>
+                <div class="space-y-1 text-gray-200">
+                  <div><strong>Name:</strong> <code class="text-blue-300">colab-ollama</code></div>
+                  <div><strong>Type:</strong> <code class="text-blue-300">command</code></div>
+                  <div><strong>Command:</strong> <code class="text-yellow-400" id="codeCursor"></code></div>
+                </div>
+                <button onclick="copyCode('codeCursor')" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[11px] font-bold">Sao chép Command</button>
+              </div>
+
+              <!-- Antigravity Panel -->
+              <div id="ide-antigravity" class="ide-tab-panel hidden p-4 bg-gray-950 text-xs font-mono text-gray-300 space-y-2">
+                <div class="text-gray-400 text-[11px]">Cấu hình trực tiếp trong mcp_config.json của Antigravity IDE:</div>
+                <pre class="text-yellow-400 overflow-x-auto"><code id="codeAntigravity"></code></pre>
+                <button onclick="copyCode('codeAntigravity')" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[11px] font-bold">Sao chép JSON</button>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <!-- WORKFLOW PRO TIPS -->
+      <div class="bg-[var(--card,#ffffff)] border border-[var(--border,#e2e8f0)] rounded-xl p-6 shadow-sm space-y-4">
+        <h3 class="font-bold text-gray-900 text-base flex items-center gap-2">
+          <span>💡</span> Quy Trình Làm Việc Thực Tế: Chuyển Đổi Khi Hết Token
+        </h3>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-gray-700">
+          <div class="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-1">
+            <span class="font-bold text-blue-700 block">1. Khi còn quota Claude/GPT:</span>
+            <p>Bạn cứ dùng bình thường để giải quyết các bài toán kiến trúc lớn hoặc yêu cầu tư duy phức tạp nhất.</p>
+          </div>
+          <div class="p-3 bg-amber-50 rounded-lg border border-amber-200 space-y-1">
+            <span class="font-bold text-amber-800 block">2. Khi chạm giới hạn (Rate Limit):</span>
+            <p>Mở tab Colab ấn <code>Run All</code> (chỉ mất ~20 giây nếu đã cache Google Drive). Đổi sang model Colab trong IDE.</p>
+          </div>
+          <div class="p-3 bg-emerald-50 rounded-lg border border-emerald-200 space-y-1">
+            <span class="font-bold text-emerald-800 block">3. Tiếp tục code không dừng lại:</span>
+            <p>Giao các tác vụ viết hàm, test case, refactor cho <code>qwen2.5-coder:7b</code> giải quyết với tốc độ ~40 tokens/s!</p>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- TAB 2: Business & ROI Calculator -->
+    <section id="tab-business" class="tab-content space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Controls Column -->
+        <div class="bg-[var(--card,#ffffff)] border border-[var(--border,#e2e8f0)] rounded-xl p-6 shadow-sm space-y-6">
+          <div class="border-b border-gray-100 pb-3">
+            <h3 class="text-lg font-bold text-gray-900">Thiết Lập Thói Quen Sử Dụng</h3>
+            <p class="text-xs text-gray-500">Điều chỉnh thông số thực tế để tính toán chi phí chính xác.</p>
+          </div>
+
+          <!-- Slider: Hours per day -->
+          <div class="space-y-2">
+            <div class="flex justify-between items-center text-sm font-medium">
+              <label for="hoursPerDay" class="text-gray-700">Số giờ code/dùng LLM mỗi ngày:</label>
+              <span id="hoursPerDayVal" class="text-blue-600 font-bold text-base">2 giờ</span>
+            </div>
+            <input type="range" id="hoursPerDay" min="0.5" max="8" step="0.5" value="2" class="w-full h-2 bg-gray-200 rounded-lg accent-blue-600 cursor-pointer" oninput="calculateROI()">
+            <div class="flex justify-between text-xs text-gray-400">
+              <span>30p (Vọc vạch)</span>
+              <span>4h (Bán thời gian)</span>
+              <span>8h (Toàn thời gian)</span>
+            </div>
+          </div>
+
+          <!-- Slider: Days per month -->
+          <div class="space-y-2">
+            <div class="flex justify-between items-center text-sm font-medium">
+              <label for="daysPerMonth" class="text-gray-700">Số ngày làm việc trong tháng:</label>
+              <span id="daysPerMonthVal" class="text-blue-600 font-bold text-base">22 ngày</span>
+            </div>
+            <input type="range" id="daysPerMonth" min="5" max="30" step="1" value="22" class="w-full h-2 bg-gray-200 rounded-lg accent-blue-600 cursor-pointer" oninput="calculateROI()">
+          </div>
+
+          <!-- Select: GPU Tier on Colab -->
+          <div class="space-y-2">
+            <label for="gpuTier" class="text-sm font-medium text-gray-700">Loại GPU sử dụng trên Colab:</label>
+            <select id="gpuTier" class="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500" onchange="calculateROI()">
+              <option value="1.7" selected>Tesla T4 (16GB VRAM) — 1.7 CU/giờ (Khuyên Dùng)</option>
+              <option value="4.0">NVIDIA L4 (24GB VRAM) — 4.0 CU/giờ</option>
+              <option value="11.0">NVIDIA A100 (40GB VRAM) — 11.0 CU/giờ</option>
+            </select>
+          </div>
+
+          <div class="bg-blue-50 p-4 rounded-lg border border-blue-100 text-xs text-blue-800 space-y-1">
+            <div class="font-bold flex items-center gap-1.5">
+              <span>💡 Mẹo thực chiến:</span>
+            </div>
+            <p>Tesla T4 đủ mạnh cho 90% nhu cầu coding hằng ngày. Chỉ chuyển sang L4 hoặc A100 khi bạn thật sự cần chạy model 14B hoặc 32B.</p>
+          </div>
+        </div>
+
+        <!-- Analysis & Results Column -->
+        <div class="lg:col-span-2 bg-[var(--card,#ffffff)] border border-[var(--border,#e2e8f0)] rounded-xl p-6 shadow-sm space-y-6">
+          <div class="border-b border-gray-100 pb-3 flex justify-between items-center">
+            <div>
+              <h3 class="text-lg font-bold text-gray-900">Bảng So Sánh Chi Phí Thực Tế / Tháng</h3>
+              <p class="text-xs text-gray-500">Ước tính theo nhu cầu: <strong id="totalHoursDisplay">44 giờ/tháng</strong></p>
+            </div>
+            <span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-semibold">Tối Ưu Kinh Tế</span>
+          </div>
+
+          <!-- Cards Grid -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            
+            <!-- Colab Pro -->
+            <div class="bg-gradient-to-b from-blue-50 to-white border-2 border-blue-500 rounded-xl p-4 relative shadow-sm">
+              <span class="absolute -top-3 right-3 bg-blue-600 text-white text-[11px] px-2 py-0.5 rounded-full font-bold uppercase">Lựa chọn #1</span>
+              <h4 class="font-bold text-gray-900 text-base">Google Colab Pro</h4>
+              <p class="text-xs text-gray-500 mt-1">100 Compute Units sẵn có</p>
+              <div class="my-4">
+                <span class="text-2xl font-black text-blue-700" id="colabMonthlyCost">$9.99</span>
+                <span class="text-xs text-gray-500">/tháng</span>
+                <div class="text-xs text-emerald-600 font-semibold mt-1" id="cuRemainingText">Còn dư 25.2 CU</div>
+              </div>
+              <ul class="text-xs text-gray-600 space-y-1.5 border-t border-gray-100 pt-3">
+                <li class="flex items-center gap-1.5">✅ 0đ vốn đầu tư phần cứng</li>
+                <li class="flex items-center gap-1.5">✅ Máy local mát, không hao pin</li>
+                <li class="flex items-center gap-1.5">⚠️ Giới hạn phiên 12-24h</li>
+              </ul>
+            </div>
+
+            <!-- Mua GPU Local -->
+            <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
+              <h4 class="font-bold text-gray-900 text-base">Mua Card PC Local</h4>
+              <p class="text-xs text-gray-500 mt-1">RTX 4060Ti 16GB VRAM</p>
+              <div class="my-4">
+                <span class="text-2xl font-black text-gray-800">~12.5 tr</span>
+                <span class="text-xs text-gray-500 block">Vốn ban đầu (CapEx)</span>
+                <div class="text-xs text-gray-500 mt-1">+ ~150k tiền điện/tháng</div>
+              </div>
+              <ul class="text-xs text-gray-600 space-y-1.5 border-t border-gray-200 pt-3">
+                <li class="flex items-center gap-1.5">✅ Chạy 24/7 không timeout</li>
+                <li class="flex items-center gap-1.5">✅ 100% Offline & riêng tư</li>
+                <li class="flex items-center gap-1.5">❌ Chi phí vốn rất cao</li>
+              </ul>
+            </div>
+
+            <!-- Commercial API -->
+            <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
+              <h4 class="font-bold text-gray-900 text-base">API Thương Mại</h4>
+              <p class="text-xs text-gray-500 mt-1">Claude 3.5 / GPT-4o</p>
+              <div class="my-4">
+                <span class="text-2xl font-black text-purple-700" id="apiMonthlyCost">~$22.00</span>
+                <span class="text-xs text-gray-500">/tháng</span>
+                <div class="text-xs text-gray-400 mt-1">Ước tính theo tokens code</div>
+              </div>
+              <ul class="text-xs text-gray-600 space-y-1.5 border-t border-gray-200 pt-3">
+                <li class="flex items-center gap-1.5">✅ Chất lượng cao nhất</li>
+                <li class="flex items-center gap-1.5">✅ Không cần duy trì server</li>
+                <li class="flex items-center gap-1.5">⚠️ Bị khóa cứng khi hết hạn mức</li>
+              </ul>
+            </div>
+
+          </div>
+
+          <!-- Verdict Box -->
+          <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-3">
+            <span class="text-2xl">🎯</span>
+            <div class="space-y-1">
+              <h4 class="text-sm font-bold text-emerald-900">Kết Luận Kinh Tế & Khuyến Nghị</h4>
+              <p class="text-xs text-emerald-800 leading-relaxed" id="roiVerdictText">
+                Với nhu cầu 44 giờ/tháng trên GPU Tesla T4, bạn chỉ dùng hết ~74.8 Compute Units trên tổng số 100 CU của gói Colab Pro ($10/tháng). Bạn vẫn còn dư 25.2 CU dự phòng mà không phải bù thêm tiền!
+              </p>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- TAB 3: VRAM & Quantization Simulator -->
+    <section id="tab-vram" class="tab-content space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Controls -->
+        <div class="bg-[var(--card,#ffffff)] border border-[var(--border,#e2e8f0)] rounded-xl p-6 shadow-sm space-y-5">
+          <h3 class="text-lg font-bold text-gray-900 border-b border-gray-100 pb-3">Chọn Cấu Hình Model</h3>
+
+          <div class="space-y-2">
+            <label for="vramModel" class="text-sm font-medium text-gray-700">Mô hình AI:</label>
+            <select id="vramModel" class="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg text-sm" onchange="updateVramSim()">
+              <option value="7" selected>Qwen 2.5 Coder (7B) — Best for Coding</option>
+              <option value="8">Llama 3.1 (8B) — General Purpose</option>
+              <option value="8.5">DeepSeek R1 Distill (8B) — Reasoning</option>
+              <option value="14">Qwen 2.5 Coder (14B) — Pro Coding</option>
+              <option value="32">Qwen 2.5 (32B) — Large</option>
+              <option value="70">Llama 3.3 (70B) — Flagship</option>
+            </select>
+          </div>
+
+          <div class="space-y-2">
+            <label for="vramPrecision" class="text-sm font-medium text-gray-700">Lượng tử hóa (Quantization):</label>
+            <select id="vramPrecision" class="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg text-sm" onchange="updateVramSim()">
+              <option value="0.55" selected>4-bit (Q4_K_M) — Tối ưu hoàn hảo</option>
+              <option value="1.0">8-bit (Q8_0) — Giữ nguyên chất lượng</option>
+              <option value="2.0">16-bit Float (FP16) — Định dạng gốc</option>
+            </select>
+          </div>
+
+          <div class="space-y-2">
+            <div class="flex justify-between items-center text-sm font-medium">
+              <label for="contextLength" class="text-gray-700">Độ dài ngữ cảnh (Context Window):</label>
+              <span id="contextLengthVal" class="text-blue-600 font-bold">8,192 tokens</span>
+            </div>
+            <input type="range" id="contextLength" min="2048" max="32768" step="2048" value="8192" class="w-full h-2 bg-gray-200 rounded-lg accent-blue-600 cursor-pointer" oninput="updateVramSim()">
+          </div>
+
+          <div class="space-y-2">
+            <label for="targetGpu" class="text-sm font-medium text-gray-700">GPU Mục Tiêu Trên Colab:</label>
+            <select id="targetGpu" class="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg text-sm" onchange="updateVramSim()">
+              <option value="16" selected>Tesla T4 (16 GB VRAM) — Mặc định</option>
+              <option value="24">NVIDIA L4 (24 GB VRAM)</option>
+              <option value="40">NVIDIA A100 (40 GB VRAM)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Simulation Visualization -->
+        <div class="lg:col-span-2 bg-[var(--card,#ffffff)] border border-[var(--border,#e2e8f0)] rounded-xl p-6 shadow-sm space-y-6">
+          <div class="border-b border-gray-100 pb-3 flex justify-between items-center">
+            <div>
+              <h3 class="text-lg font-bold text-gray-900">Mô Phỏng Phân Bổ Bộ Nhớ VRAM</h3>
+              <p class="text-xs text-gray-500">Trực quan hóa cách mô hình và KV Cache chiếm dụng bộ nhớ GPU.</p>
+            </div>
+            <div id="vramStatusBadge" class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800">
+              ✅ An Toàn Tuyệt Đối
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-4">
+            <div class="bg-gray-50 p-3 rounded-lg text-center">
+              <span class="text-xs text-gray-500 block">Dung Lượng Model (Weights)</span>
+              <span class="text-xl font-bold text-blue-600" id="weightsMemDisplay">~4.4 GB</span>
+            </div>
+            <div class="bg-gray-50 p-3 rounded-lg text-center">
+              <span class="text-xs text-gray-500 block">Bộ Nhớ Ngữ Cảnh (KV Cache)</span>
+              <span class="text-xl font-bold text-purple-600" id="kvMemDisplay">~1.2 GB</span>
+            </div>
+            <div class="bg-gray-50 p-3 rounded-lg text-center">
+              <span class="text-xs text-gray-500 block">Tổng VRAM Yêu Cầu</span>
+              <span class="text-xl font-bold text-gray-900" id="totalMemDisplay">~5.6 GB / 16 GB</span>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <div class="flex justify-between text-xs font-semibold text-gray-600">
+              <span>0 GB</span>
+              <span id="vramUsagePercent">35% VRAM</span>
+              <span id="gpuMaxVram">16 GB (Tesla T4)</span>
+            </div>
+            <div class="w-full h-8 bg-gray-100 rounded-xl overflow-hidden flex p-1 border border-gray-200">
+              <div id="barWeights" style="width: 28%;" class="h-full bg-blue-500 rounded-l-lg transition-all duration-300 flex items-center justify-center text-[11px] font-bold text-white overflow-hidden">
+                Weights
+              </div>
+              <div id="barKv" style="width: 7%;" class="h-full bg-purple-500 transition-all duration-300 flex items-center justify-center text-[11px] font-bold text-white overflow-hidden">
+                KV
+              </div>
+              <div id="barFree" style="width: 65%;" class="h-full bg-transparent transition-all duration-300 flex items-center justify-center text-[11px] text-gray-400">
+                Còn trống
+              </div>
+            </div>
+          </div>
+
+          <div class="p-4 bg-gray-50 rounded-xl border border-gray-200 text-xs text-gray-700 leading-relaxed" id="vramInsightText">
+            💡 <strong>Phân tích:</strong> Mô hình <strong>Qwen 2.5 Coder 7B</strong> nén 4-bit chiếm khoảng 4.4 GB VRAM. Hoàn toàn nằm trong giới hạn 16 GB của GPU Tesla T4. Tốc độ sinh token đạt từ <strong>30 - 45 tokens/giây</strong>.
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- TAB 4: Interactive Architecture & Protocol Flow -->
+    <section id="tab-architecture" class="tab-content space-y-6">
+      <div class="bg-[var(--card,#ffffff)] border border-[var(--border,#e2e8f0)] rounded-xl p-6 shadow-sm space-y-6">
+        <div class="border-b border-gray-100 pb-3 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+          <div>
+            <h3 class="text-lg font-bold text-gray-900">Mô Phỏng Luồng Đi Của Dữ Liệu (End-to-End Request Trace)</h3>
+            <p class="text-xs text-gray-500">Nhấn nút bên dưới để xem từng bước dữ liệu được vận chuyển từ IDE cá nhân lên Colab GPU.</p>
+          </div>
+          <button onclick="simulateRequest()" id="btnSimulate" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-lg transition shadow flex items-center gap-2">
+            <span>▶️ Chạy Mô Phỏng Gửi Request</span>
+          </button>
+        </div>
+
+        <!-- Flow Nodes Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          
+          <div id="flowNode1" class="flow-node bg-white border-2 border-gray-200 rounded-xl p-4 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-gray-400">TRẠM 1</span>
+              <span class="text-base">💻</span>
+            </div>
+            <h4 class="font-bold text-sm text-gray-900">Local AI Client</h4>
+            <p class="text-xs text-gray-500">Claude Desktop / Cursor / Antigravity</p>
+            <div class="bg-gray-50 p-2 rounded text-[11px] font-mono text-gray-700 border border-gray-200">
+              Prompt: "Viết hàm tối ưu SQL trong Python"
+            </div>
+          </div>
+
+          <div id="flowNode2" class="flow-node bg-white border-2 border-gray-200 rounded-xl p-4 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-gray-400">TRẠM 2</span>
+              <span class="text-base">🔌</span>
+            </div>
+            <h4 class="font-bold text-sm text-gray-900">Local MCP Server</h4>
+            <p class="text-xs text-gray-500">colab_ollama_mcp/server.py (stdio)</p>
+            <div class="bg-gray-50 p-2 rounded text-[11px] font-mono text-gray-700 border border-gray-200">
+              Tool: ollama_chat<br>Protocol: JSON-RPC 2.0
+            </div>
+          </div>
+
+          <div id="flowNode3" class="flow-node bg-white border-2 border-gray-200 rounded-xl p-4 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-gray-400">TRẠM 3</span>
+              <span class="text-base">🌐</span>
+            </div>
+            <h4 class="font-bold text-sm text-gray-900">Cloudflare Tunnel</h4>
+            <p class="text-xs text-gray-500">*.trycloudflare.com (Edge)</p>
+            <div class="bg-gray-50 p-2 rounded text-[11px] font-mono text-gray-700 border border-gray-200">
+              HTTPS POST /api/chat<br>Latency: ~180ms
+            </div>
+          </div>
+
+          <div id="flowNode4" class="flow-node bg-white border-2 border-gray-200 rounded-xl p-4 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-gray-400">TRẠM 4</span>
+              <span class="text-base">⚡</span>
+            </div>
+            <h4 class="font-bold text-sm text-gray-900">Colab Ollama (GPU)</h4>
+            <p class="text-xs text-gray-500">Tesla T4 16GB VRAM</p>
+            <div class="bg-gray-50 p-2 rounded text-[11px] font-mono text-gray-700 border border-gray-200">
+              Speed: ~38 tokens/s<br>VRAM: Qwen2.5-Coder
+            </div>
+          </div>
+
+        </div>
+
+        <div class="bg-gray-950 text-gray-200 rounded-xl p-4 font-mono text-xs space-y-2">
+          <div class="flex items-center justify-between text-gray-400 border-b border-gray-800 pb-2">
+            <span>LIVE PROTOCOL TRACE CONSOLE</span>
+            <span id="simStatusText">Sẵn sàng (Nhấn nút chạy để kiểm tra)</span>
+          </div>
+          <div id="simLogBox" class="h-28 overflow-y-auto space-y-1 text-gray-300">
+            <div>[00:00:00] Hệ thống sẵn sàng.</div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- TAB 5: Deep Dive & FAQs (Basic Theory) -->
+    <section id="tab-faq" class="tab-content space-y-6">
+      <div class="bg-[var(--card,#ffffff)] border border-[var(--border,#e2e8f0)] rounded-xl p-6 shadow-sm space-y-6">
+        <div>
+          <h3 class="text-lg font-bold text-gray-900">Giải Đáp Bản Chất Lý Thuyết (Vừa Đủ Hiểu, Không Quá Tải)</h3>
+          <p class="text-xs text-gray-500">Những câu hỏi mấu chốt để bạn làm chủ toàn bộ hệ thống mà không cần học sâu về SysAdmin hay DevOps.</p>
+        </div>
+
+        <div class="space-y-4">
+          
+          <details class="group border border-gray-200 rounded-xl p-4 bg-gray-50" open>
+            <summary class="flex justify-between items-center font-bold text-sm text-gray-900 cursor-pointer">
+              <span>1. Tại sao máy local không gọi thẳng vào địa chỉ IP của Google Colab mà phải dùng Tunnel?</span>
+              <span class="transition group-open:rotate-180">▼</span>
+            </summary>
+            <div class="mt-3 text-xs text-gray-700 leading-relaxed border-t border-gray-200 pt-3">
+              Google Colab chạy trong container của Google Cloud, nằm sau hệ thống tường lửa (NAT) và <strong>không có Public IP mở cổng vào</strong>. Khi bạn ở nhà gửi gói tin tới sẽ bị chặn lại. Do đó, ta dùng <strong>Reverse Tunnel</strong>: tiến trình trên Colab chủ động mở một đường ống ngầm ra máy chủ Cloudflare. Cloudflare cấp cho ta link HTTPS (ví dụ <code>*.trycloudflare.com</code>) để chuyển tiếp request ngược vào Colab một cách an toàn.
+            </div>
+          </details>
+
+          <details class="group border border-gray-200 rounded-xl p-4 bg-gray-50">
+            <summary class="flex justify-between items-center font-bold text-sm text-gray-900 cursor-pointer">
+              <span>2. Cơ chế Keep-Alive bằng âm thanh vô thanh (Silent Audio) hoạt động như thế nào?</span>
+              <span class="transition group-open:rotate-180">▼</span>
+            </summary>
+            <div class="mt-3 text-xs text-gray-700 leading-relaxed border-t border-gray-200 pt-3">
+              Trình duyệt (Chrome/Edge/Brave) sẽ "ru ngủ" (tab discarding) các tab không hoạt động sau 60-90 phút để tiết kiệm RAM. Khi nhúng một đoạn âm thanh lặp lại (dù là file rỗng không tiếng), trình duyệt nhận diện đây là tab đang phát media và sẽ <strong>giữ cho tab luôn hoạt động với ưu tiên cao nhất</strong>, ngăn Colab tự động ngắt kết nối.
+            </div>
+          </details>
+
+          <details class="group border border-gray-200 rounded-xl p-4 bg-gray-50">
+            <summary class="flex justify-between items-center font-bold text-sm text-gray-900 cursor-pointer">
+              <span>3. Tại sao lại dùng MCP (Model Context Protocol) mà không dùng REST API thông thường?</span>
+              <span class="transition group-open:rotate-180">▼</span>
+            </summary>
+            <div class="mt-3 text-xs text-gray-700 leading-relaxed border-t border-gray-200 pt-3">
+              Nếu dùng REST API thuần, bạn phải tự viết script và copy-paste code bằng tay. MCP là chuẩn giao tiếp chung của các trợ lý AI (Claude Desktop, Cursor, Antigravity). Khi kết nối qua MCP, model trên Colab sẽ xuất hiện ngay trong IDE như một công cụ chuyên biệt, cho phép AI tự động gọi model để sinh code hoặc phân tích lỗi mà không cần bạn rời khỏi trình soạn thảo.
+            </div>
+          </details>
+
+          <details class="group border border-gray-200 rounded-xl p-4 bg-gray-50">
+            <summary class="flex justify-between items-center font-bold text-sm text-gray-900 cursor-pointer">
+              <span>4. Tại sao cần mount Google Drive vào thư mục OLLAMA_MODELS?</span>
+              <span class="transition group-open:rotate-180">▼</span>
+            </summary>
+            <div class="mt-3 text-xs text-gray-700 leading-relaxed border-t border-gray-200 pt-3">
+              Ổ cứng của Colab là ổ đĩa tạm thời (mỗi lần ngắt phiên sẽ bị xóa sạch). Gắn Google Drive giúp lưu trữ vĩnh viễn trọng số mô hình. Nhờ đó, từ lần khởi động thứ hai trở đi, Colab nạp model chỉ mất đúng <strong>5 đến 10 giây</strong> thay vì phải chờ tải lại 5GB qua mạng.
+            </div>
+          </details>
+
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <script>
+    // Tab switching
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('bg-white', 'text-blue-700', 'shadow');
+        btn.classList.add('bg-white/10', 'text-white');
+      });
+
+      const targetTab = document.getElementById(tabId);
+      if (targetTab) targetTab.classList.add('active');
+
+      const activeBtn = document.querySelector(`[data-tab="${tabId}"]`);
+      if (activeBtn) {
+        activeBtn.classList.remove('bg-white/10', 'text-white');
+        activeBtn.classList.add('bg-white', 'text-blue-700', 'shadow');
+      }
+    }
+
+    // IDE tab switching in Wizard
+    function switchIdeTab(tabId) {
+      document.querySelectorAll('.ide-tab-panel').forEach(p => p.classList.add('hidden'));
+      document.getElementById(tabId).classList.remove('hidden');
+
+      ['btnIdeClaude', 'btnIdeCursor', 'btnIdeAntigravity'].forEach(id => {
+        const btn = document.getElementById(id);
+        btn.className = 'px-3 py-1 bg-gray-200 text-gray-700 rounded text-xs font-bold';
+      });
+
+      if (tabId === 'ide-claude') {
+        document.getElementById('btnIdeClaude').className = 'px-3 py-1 bg-white text-blue-700 rounded text-xs font-bold shadow-sm';
+      } else if (tabId === 'ide-cursor') {
+        document.getElementById('btnIdeCursor').className = 'px-3 py-1 bg-white text-blue-700 rounded text-xs font-bold shadow-sm';
+      } else if (tabId === 'ide-antigravity') {
+        document.getElementById('btnIdeAntigravity').className = 'px-3 py-1 bg-white text-blue-700 rounded text-xs font-bold shadow-sm';
+      }
+    }
+
+    // Wizard reactive code generation
+    function updateWizard() {
+      const selectedGpu = document.querySelector('input[name="wizardGpu"]:checked').value;
+      const selectedModel = document.querySelector('input[name="wizardModel"]:checked').value;
+
+      document.getElementById('colabSnippetTitle').innerText = `🐍 Google Colab All-in-One Cell (GPU: ${selectedGpu} | Model: ${selectedModel})`;
+
+      const colabCode = `# ===============================================================
+# 🚀 COLAB OLLAMA ALL-IN-ONE RUNNER (Tối ưu cho ${selectedGpu} GPU)
+# Model mục tiêu: ${selectedModel}
+# ===============================================================
+import subprocess, os, time, re
+
+# 1. Cài đặt Ollama & Cloudflared
+print("📦 [1/4] Đang cài đặt Ollama và Cloudflared tunnel...")
+!curl -fsSL https://ollama.com/install.sh | sh
+!wget -q -nc https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+!dpkg -i cloudflared-linux-amd64.deb > /dev/null 2>&1
+
+# 2. Khởi động Ollama daemon ngầm trên cổng 11434
+print("⚙️ [2/4] Khởi động Ollama daemon...")
+os.environ["OLLAMA_HOST"] = "0.0.0.0:11434"
+subprocess.Popen(["ollama", "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+time.sleep(3)
+
+# 3. Kéo model coding mục tiêu
+print(f"⏳ [3/4] Đang kéo model ${selectedModel} về GPU Colab...")
+!ollama pull ${selectedModel}
+
+# 4. Mở đường hầm Cloudflare Quick Tunnel
+print("🌐 [4/4] Đang tạo đường hầm kết nối ra ngoài...")
+tunnel_proc = subprocess.Popen(
+    ["cloudflared", "tunnel", "--url", "http://localhost:11434"],
+    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
+)
+
+tunnel_url = None
+for _ in range(50):
+    line = tunnel_proc.stdout.readline()
+    m = re.search(r'https://[a-zA-Z0-9-]+\\.trycloudflare\\.com', line)
+    if m:
+        tunnel_url = m.group(0)
+        break
+    time.sleep(0.2)
+
+print("\\n" + "="*65)
+if tunnel_url:
+    print("🎉 THÀNH CÔNG! ĐƯỜNG HẦM OLLAMA ĐÃ HOẠT ĐỘNG:")
+    print(f"🔗 TUNNEL URL: {tunnel_url}")
+    print("="*65)
+    print("👉 Hãy dán link trên vào mục cấu hình IDE ở máy local để bắt đầu code!")
+else:
+    print("❌ Chưa bắt được link tunnel. Vui lòng kiểm tra lại log.")`;
+
+      document.getElementById('wizardColabCode').innerText = colabCode;
+      updateWizardSnippets();
+    }
+
+    function updateWizardSnippets() {
+      const tunnel = document.getElementById('wizardTunnelInput').value.trim() || 'https://xxxx-your-tunnel.trycloudflare.com';
+      const serverPath = '/Users/marchhygge/MarchHygge/project/colab-ollama-mcp/colab_ollama_mcp/server.py';
+
+      const claudeJson = `{\n  "mcpServers": {\n    "colab-ollama": {\n      "command": "python3",\n      "args": [\n        "${serverPath}",\n        "--endpoint",\n        "${tunnel}"\n      ]\n    }\n  }\n}`;
+      document.getElementById('codeClaude').innerText = claudeJson;
+
+      const cursorCmd = `python3 ${serverPath} --endpoint ${tunnel}`;
+      document.getElementById('codeCursor').innerText = cursorCmd;
+
+      document.getElementById('codeAntigravity').innerText = claudeJson;
+    }
+
+    // ROI Logic
+    function calculateROI() {
+      const hours = parseFloat(document.getElementById('hoursPerDay').value);
+      const days = parseInt(document.getElementById('daysPerMonth').value);
+      const cuRate = parseFloat(document.getElementById('gpuTier').value);
+
+      document.getElementById('hoursPerDayVal').innerText = `${hours} giờ`;
+      document.getElementById('daysPerMonthVal').innerText = `${days} ngày`;
+
+      const totalHours = Math.round(hours * days);
+      document.getElementById('totalHoursDisplay').innerText = `${totalHours} giờ/tháng`;
+
+      const totalCU = (totalHours * cuRate).toFixed(1);
+      const remainingCU = (100 - totalCU).toFixed(1);
+
+      const cuRemainingText = document.getElementById('cuRemainingText');
+      const verdict = document.getElementById('roiVerdictText');
+
+      if (remainingCU >= 0) {
+        document.getElementById('colabMonthlyCost').innerText = '$9.99';
+        cuRemainingText.innerText = `Còn dư ${remainingCU} CU`;
+        cuRemainingText.className = 'text-xs text-emerald-600 font-semibold mt-1';
+        verdict.innerHTML = `Với nhu cầu <strong>${totalHours} giờ/tháng</strong>, bạn tiêu thụ khoảng <strong>${totalCU} CU</strong> trên gói 100 CU của Colab Pro ($10/tháng). Bạn vẫn còn dư <strong>${remainingCU} CU</strong> dự phòng.`;
+      } else {
+        const extraPacks = Math.ceil(Math.abs(remainingCU) / 100);
+        const totalCost = (9.99 + extraPacks * 9.99).toFixed(2);
+        document.getElementById('colabMonthlyCost').innerText = `$${totalCost}`;
+        cuRemainingText.innerText = `Cần mua thêm ${extraPacks * 100} CU (+$${extraPacks * 9.99})`;
+        cuRemainingText.className = 'text-xs text-amber-600 font-semibold mt-1';
+        verdict.innerHTML = `Nhu cầu <strong>${totalHours} giờ/tháng</strong> tiêu thụ <strong>${totalCU} CU</strong>, vượt quá hạn ngạch 100 CU cơ bản. Cần mua thêm gói phụ trợ.`;
+      }
+
+      const estTokensMillions = (totalHours * 12 * 0.05).toFixed(1);
+      const apiCost = Math.max(12, Math.round(estTokensMillions * 1.5 * 10) / 10).toFixed(2);
+      document.getElementById('apiMonthlyCost').innerText = `~$${apiCost}`;
+    }
+
+    // VRAM Logic
+    function updateVramSim() {
+      const modelSize = parseFloat(document.getElementById('vramModel').value);
+      const precision = parseFloat(document.getElementById('vramPrecision').value);
+      const contextLen = parseInt(document.getElementById('contextLength').value);
+      const gpuMax = parseFloat(document.getElementById('targetGpu').value);
+
+      document.getElementById('contextLengthVal').innerText = `${contextLen.toLocaleString()} tokens`;
+
+      const weightsMem = (modelSize * precision).toFixed(1);
+      const kvMem = (0.3 + (contextLen / 8192) * (modelSize / 7) * 0.9).toFixed(1);
+      const totalMem = (parseFloat(weightsMem) + parseFloat(kvMem)).toFixed(1);
+
+      document.getElementById('weightsMemDisplay').innerText = `~${weightsMem} GB`;
+      document.getElementById('kvMemDisplay').innerText = `~${kvMem} GB`;
+      document.getElementById('totalMemDisplay').innerText = `~${totalMem} GB / ${Math.floor(gpuMax)} GB`;
+
+      const usagePct = Math.min(100, Math.round((totalMem / gpuMax) * 100));
+      document.getElementById('vramUsagePercent').innerText = `${usagePct}% VRAM`;
+      document.getElementById('gpuMaxVram').innerText = `${Math.floor(gpuMax)} GB`;
+
+      const barW = Math.min(100, (weightsMem / gpuMax) * 100);
+      const barK = Math.min(100 - barW, (kvMem / gpuMax) * 100);
+      const barF = Math.max(0, 100 - barW - barK);
+
+      document.getElementById('barWeights').style.width = `${barW}%`;
+      document.getElementById('barKv').style.width = `${barK}%`;
+      document.getElementById('barFree').style.width = `${barF}%`;
+
+      const badge = document.getElementById('vramStatusBadge');
+      const insight = document.getElementById('vramInsightText');
+
+      if (totalMem <= gpuMax * 0.8) {
+        badge.className = 'px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800';
+        badge.innerText = '✅ Hoạt Động Mượt Mà (Optimal)';
+        insight.innerHTML = `💡 <strong>Phân tích:</strong> Tổng bộ nhớ ~${totalMem} GB chiếm ${usagePct}% dung lượng card. GPU hoạt động rất mát mẻ, tốc độ tối ưu.`;
+      } else if (totalMem <= gpuMax) {
+        badge.className = 'px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-100 text-amber-800';
+        badge.innerText = '⚠️ Sát Ngưỡng VRAM (High Usage)';
+        insight.innerHTML = `⚠️ <strong>Cảnh báo:</strong> Tổng bộ nhớ ~${totalMem} GB tiệm cận mức tối đa ${Math.floor(gpuMax)} GB.`;
+      } else {
+        badge.className = 'px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-red-100 text-red-800';
+        badge.innerText = '❌ Tràn Bộ Nhớ (Out of Memory - OOM)';
+        insight.innerHTML = `❌ <strong>Không thể chạy:</strong> Tổng mức yêu cầu ~${totalMem} GB vượt quá dung lượng GPU.`;
+      }
+    }
+
+    // Simulator
+    let isSimulating = false;
+    async function simulateRequest() {
+      if (isSimulating) return;
+      isSimulating = true;
+
+      const btn = document.getElementById('btnSimulate');
+      const logBox = document.getElementById('simLogBox');
+      const statusText = document.getElementById('simStatusText');
+      btn.classList.add('opacity-50', 'cursor-not-allowed');
+
+      const log = (msg) => {
+        const time = new Date().toTimeString().split(' ')[0];
+        logBox.innerHTML += `<div>[${time}] ${msg}</div>`;
+        logBox.scrollTop = logBox.scrollHeight;
+      };
+
+      const setNodeActive = (nodeNum) => {
+        for (let i = 1; i <= 4; i++) {
+          const el = document.getElementById(`flowNode${i}`);
+          if (i === nodeNum) el.classList.add('active-step');
+          else el.classList.remove('active-step');
+        }
+      };
+
+      log("🚀 Khởi chạy mô phỏng gửi prompt tới Colab Ollama...");
+      statusText.innerText = "Đang xử lý...";
+
+      setNodeActive(1);
+      log("💻 [Trạm 1] Người dùng nhập prompt vào Claude Desktop / Cursor IDE.");
+      await new Promise(r => setTimeout(r, 600));
+
+      setNodeActive(2);
+      log("🔌 [Trạm 2] IDE chuyển prompt thành lệnh gọi Tool 'ollama_chat' qua stdio (JSON-RPC 2.0).");
+      await new Promise(r => setTimeout(r, 600));
+
+      setNodeActive(3);
+      log("🌐 [Trạm 3] Python MCP Server gửi HTTPS POST tới Cloudflare (*.trycloudflare.com).");
+      await new Promise(r => setTimeout(r, 700));
+
+      setNodeActive(4);
+      log("⚡ [Trạm 4] Ollama daemon nhận request, nạp tensor vào Tesla T4 GPU VRAM.");
+      log("🧠 GPU tiến hành sinh tokens: Qwen 2.5 Coder đang tính toán với tốc độ ~38.4 tokens/s.");
+      await new Promise(r => setTimeout(r, 1000));
+
+      setNodeActive(1);
+      log("🎉 Hoàn tất! Phản hồi JSON được trả về IDE. Nội dung hiển thị mượt mà trên khung chat!");
+      statusText.innerText = "Thành công (200 OK)";
+
+      btn.classList.remove('opacity-50', 'cursor-not-allowed');
+      isSimulating = false;
+    }
+
+    function copyCode(elementId) {
+      const text = document.getElementById(elementId).innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        alert("Đã sao chép vào bộ nhớ tạm!");
+      });
+    }
+
+    window.onload = function() {
+      updateWizard();
+      calculateROI();
+      updateVramSim();
+    };
+  </script>
+</body>
+</html>

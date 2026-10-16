@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#EEF1F4">
+<title>Colab Ollama MCP: từ bài toán đến từng dòng code</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EEF1F4; --paper:#F8F9FB; --ink:#1B2A41; --muted:#4A5870; --line:#CBD3DD;
+  --agy:#4B5BD7; --srv:#2F7D5B; --cf:#F38020; --colab:#E0A100;
+  --focus:#2438C8; --code:#1E2433; --code-ink:#E6EAF2; --ok:#1F6B4A; --bad:#9A3B2E;
+  --ease-out:cubic-bezier(.23,1,.32,1); --ease-io:cubic-bezier(.77,0,.175,1);
+  --sans:"Be Vietnam Pro",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:5rem;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 1.0625rem/1.65 var(--sans);-webkit-tap-highlight-color:transparent;overflow-x:hidden}
+h1,h2,h3{text-wrap:balance;line-height:1.2;margin:0}
+p{margin:0 0 1rem;max-width:64ch;text-wrap:pretty}
+code,pre,kbd{font-family:var(--mono)}
+code{font-size:.88em;background:rgba(27,42,65,.07);padding:.08em .35em;border-radius:4px;overflow-wrap:anywhere}
+button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px;border-radius:4px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.skip{position:absolute;left:1rem;top:-4rem;background:var(--ink);color:#fff;padding:.6rem 1rem;border-radius:6px;z-index:50}
+.skip:focus{top:1rem}
+
+/* layout */
+.shell{display:grid;grid-template-columns:14.5rem minmax(0,1fr);gap:3.5rem;max-width:78rem;margin:0 auto;padding:0 1.5rem}
+main{min-width:0}
+section{padding:4.5rem 0 1rem}
+section>h2{font-size:clamp(1.65rem,3.2vw,2.3rem);font-weight:700;letter-spacing:-.01em;margin-bottom:1.1rem}
+section>.lead{font-size:1.1rem;color:var(--muted)}
+
+/* toc */
+.toc{position:sticky;top:0;align-self:start;max-height:100vh;overflow:auto;padding:2.5rem 0}
+.toc .grp{margin-bottom:1.6rem;padding-left:1rem;border-left:3px solid var(--line)}
+.toc .grp[data-tier="biz"]{border-color:var(--colab)}
+.toc .grp[data-tier="tech"]{border-color:var(--agy)}
+.toc .grp[data-tier="ops"]{border-color:var(--srv)}
+.toc .gt{font-weight:600;font-size:.95rem;line-height:1.3}
+.toc .gs{display:block;font-size:.82rem;color:var(--muted);margin-bottom:.4rem}
+.toc a{display:block;color:var(--ink);text-decoration:none;padding:.22rem 0;font-size:.95rem}
+.toc a[aria-current="true"]{font-weight:600;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}
+@media (hover:hover) and (pointer:fine){.toc a:hover{text-decoration:underline}}
+
+/* hero */
+.hero{padding:4rem 0 1rem;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:2.5rem;align-items:center}
+.hero h1{font-size:clamp(2rem,4.6vw,3.2rem);font-weight:700;letter-spacing:-.02em;margin-bottom:1.1rem}
+.hero p{font-size:1.12rem;color:var(--muted)}
+.chat{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:1rem;font-size:.95rem}
+.chat-h{font-size:.82rem;color:var(--muted);margin-bottom:.7rem}
+.msg{padding:.6rem .85rem;border-radius:10px;margin-bottom:.6rem;max-width:92%}
+.msg.you{background:var(--ink);color:#fff;margin-left:auto}
+.msg.sys{background:#F6E3DE;color:#6E2A1F;border:1px solid #E5BDB3}
+.msg.agy{background:#E7EAFB;border:1px solid #C4CAF0}
+.msg pre{margin:.4rem 0;background:var(--code);color:var(--code-ink);padding:.6rem .8rem;border-radius:8px;font-size:.84rem;overflow:auto}
+.badge{font-size:.8rem;color:var(--muted)}
+#reply{transition:opacity .2s var(--ease-out),transform .2s var(--ease-out)}
+#reply[hidden]{display:none}
+#reply.pre{opacity:0;transform:translateY(6px)}
+.fine{font-size:.82rem;color:var(--muted);margin:.7rem 0 0}
+
+/* buttons */
+.btn{background:var(--ink);color:#fff;border:0;border-radius:8px;padding:.6rem 1rem;font-weight:500;min-height:2.5rem;transition:transform .16s var(--ease-out),background-color .16s ease}
+.btn:active{transform:scale(.97)}
+.btn.alt{background:transparent;color:var(--ink);border:1.5px solid var(--ink)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+@media (hover:hover) and (pointer:fine){.btn:hover:not([disabled]){background:#2c4263}.btn.alt:hover:not([disabled]){background:rgba(27,42,65,.08)}}
+
+/* pain list */
+.pain{margin:1.6rem 0 0;display:grid;gap:1.1rem;max-width:64ch}
+.pain div{padding-left:1rem;border-left:3px solid var(--colab)}
+.pain dt{font-weight:600}
+.pain dd{margin:.15rem 0 0;color:var(--muted)}
+
+/* options */
+fieldset{border:0;padding:0;margin:1.4rem 0 1rem}
+legend{font-weight:600;margin-bottom:.6rem;padding:0}
+.crit{display:flex;flex-wrap:wrap;gap:.5rem}
+.crit label{display:inline-flex;align-items:center;gap:.5rem;padding:.45rem .8rem;border:1.5px solid var(--line);border-radius:999px;background:var(--paper);cursor:pointer;touch-action:manipulation;transition:background-color .16s ease,border-color .16s ease}
+.crit input{accent-color:var(--agy);width:1rem;height:1rem;margin:0}
+.crit label:has(input:checked){border-color:var(--agy);background:#E7EAFB}
+.crit label:has(input:focus-visible){outline:3px solid var(--focus);outline-offset:2px}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+table{border-collapse:collapse;width:100%;min-width:40rem;font-size:.95rem}
+th,td{padding:.7rem .8rem;text-align:center;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+tbody tr:last-child td{border-bottom:0}
+th{font-weight:600;background:rgba(27,42,65,.04)}
+td.sel,th.sel{background:#E7EAFB}
+td .y{color:var(--ok);font-weight:700}
+td .n{color:var(--bad);font-weight:700}
+td.score{font-variant-numeric:tabular-nums;font-weight:600}
+tr.top td:first-child{box-shadow:inset 4px 0 0 var(--srv);font-weight:600}
+.verdict{margin-top:1rem;padding:.8rem 1rem;border-left:4px solid var(--srv);background:var(--paper);max-width:64ch}
+
+/* stations (idea) */
+.stations{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1.2rem;margin:1.8rem 0}
+.stations>div{padding-top:.8rem;border-top:6px solid var(--c)}
+.stations h3{font-size:1.02rem;font-weight:600}
+.stations small{display:block;color:var(--muted);font-size:.85rem;margin:.15rem 0 .4rem}
+.stations p{font-size:.95rem;margin:0}
+
+/* terms */
+.term{background:rgba(75,91,215,.1);border:0;border-bottom:2px dotted var(--agy);padding:0 .2em;border-radius:3px 3px 0 0;line-height:inherit;transition:background-color .16s ease}
+.term[aria-expanded="true"]{background:rgba(75,91,215,.24)}
+@media (hover:hover) and (pointer:fine){.term:hover{background:rgba(75,91,215,.2)}}
+#pop{position:absolute;z-index:40;width:min(26rem,calc(100vw - 1.5rem));background:var(--ink);color:#fff;border-radius:10px;padding:1rem 1.15rem;font-size:.9rem;line-height:1.55;box-shadow:0 10px 32px rgba(27,42,65,.32);opacity:0;transform:scale(.96);transition:opacity .15s var(--ease-out),transform .15s var(--ease-out)}
+#pop[hidden]{display:none}
+#pop.open{opacity:1;transform:scale(1)}
+#pop b{display:block;font-size:1.05rem;color:#fff;font-weight:700}
+#pop .pop-full{font-size:.82rem;font-weight:600;color:#93C5FD;margin:.15rem 0 .55rem;letter-spacing:.01em}
+#pop .pop-tech{font-size:.88rem;color:#E2E8F0;margin-bottom:.55rem}
+#pop .pop-tech strong{color:#67E8F9;font-weight:600}
+#pop .pop-ex{display:block;padding-top:.55rem;border-top:1px solid rgba(255,255,255,.2);color:#CBD5E1;font-size:.86rem}
+#pop .pop-ex strong{color:#FDE047;font-weight:600}
+#pop code{background:rgba(255,255,255,.15);padding:.1em .3em;border-radius:3px}
+
+/* journey */
+.player{margin-top:1.6rem}
+.rail{position:relative;padding:.4rem 0 .2rem}
+.stn{display:flex;justify-content:space-between;position:relative;z-index:1}
+.node{width:4.4rem;text-align:center;font-size:.82rem;line-height:1.3}
+.node i{display:block;width:2.6rem;height:2.6rem;margin:0 auto .35rem;border-radius:50%;background:var(--c);border:3px solid var(--bg);box-shadow:0 0 0 2px var(--c);opacity:.45;transition:opacity .2s var(--ease-out),transform .2s var(--ease-out)}
+.node.on i{opacity:1;transform:scale(1.12)}
+.node b{display:block;font-weight:600}
+.node span{color:var(--muted);font-size:.78rem}
+.track{position:absolute;left:2.2rem;right:2.2rem;top:1.7rem;height:0;border-top:2px dashed var(--line);z-index:0}
+.packet{position:absolute;inset:0;transform:translateX(0);transition:transform .26s var(--ease-io);z-index:2;pointer-events:none}
+.packet.instant{transition-duration:0ms}
+.packet::before{content:"";position:absolute;left:-.55rem;top:-.55rem;width:1.1rem;height:1.1rem;border-radius:3px;background:var(--ink);box-shadow:0 0 0 3px var(--bg);transform:rotate(45deg)}
+.steps{display:flex;flex-wrap:wrap;gap:.4rem;margin:1.2rem 0 .8rem}
+.steps button{min-width:2.5rem;min-height:2.5rem;border:1.5px solid var(--line);background:var(--paper);border-radius:8px;font-variant-numeric:tabular-nums;font-weight:600;transition:transform .16s var(--ease-out),background-color .16s ease,border-color .16s ease}
+.steps button:active{transform:scale(.95)}
+.steps button[aria-current="step"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.steps button.done{border-color:var(--ink)}
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:1.4rem 1.5rem;min-height:23rem}
+.panel h3{font-size:1.3rem;font-weight:700;margin-bottom:.2rem}
+.where{font-size:.88rem;color:var(--muted);margin-bottom:1rem}
+.blk{padding-left:1rem;border-left:4px solid var(--c,var(--line));margin-bottom:1rem}
+.blk h4{margin:0 0 .15rem;font-size:.95rem;font-weight:600}
+.blk p{margin:0}
+.payload{margin:.4rem 0 0;background:var(--code);color:var(--code-ink);border-radius:8px;padding:.8rem 1rem;font-size:.82rem;line-height:1.6;overflow:auto;white-space:pre}
+.payload mark{background:rgba(224,161,0,.3);color:#FFE7A3;border-radius:3px;padding:0 .15em}
+.ctrl{display:flex;flex-wrap:wrap;gap:.6rem;margin-top:1rem;align-items:center}
+.ctrl .hint{font-size:.85rem;color:var(--muted)}
+.gofn{margin-top:.4rem}
+.link{background:none;border:0;padding:0;color:var(--focus);text-decoration:underline;text-underline-offset:3px;font-weight:500;transition:color .15s ease}
+
+/* functions */
+.fn{border:1px solid var(--line);border-radius:12px;background:var(--paper);margin-bottom:.8rem;overflow:hidden}
+.fn>summary{list-style:none;cursor:pointer;padding:1rem 1.2rem;display:flex;gap:.8rem;align-items:baseline;flex-wrap:wrap;touch-action:manipulation;transition:background-color .15s ease}
+.fn>summary::-webkit-details-marker{display:none}
+.fn>summary::before{content:"+";font-family:var(--mono);font-weight:700;width:1.2rem;flex:none}
+.fn[open]>summary::before{content:"–"}
+.fn>summary b{font-family:var(--mono);font-size:1.02rem}
+.fn>summary span{color:var(--muted);font-size:.93rem}
+.fnb{padding:0 1.2rem 1.3rem}
+.fnb .blk{--c:var(--agy)}
+.fnb .blk.p{--c:var(--bad)}
+.fnb .blk.n{--c:var(--colab)}
+.code{margin:.6rem 0 1rem;background:var(--code);color:var(--code-ink);border-radius:10px;padding:.7rem 0;font-size:.82rem;line-height:1.65;overflow:auto;max-height:30rem}
+.code .ln{display:block;padding:0 1rem 0 .9rem;border-left:3px solid transparent;white-space:pre;min-height:1.65em;transition:background-color .15s ease}
+.code .ln.hl{background:rgba(255,255,255,.1);border-left-color:#7DD3A8}
+.code .k{color:#C792EA}.code .s{color:#A5D6A7}.code .c{color:#8A93A8;font-style:italic}.code .m{color:#F2B880}
+.io{display:grid;grid-template-columns:1fr;gap:.2rem;margin:.4rem 0}
+.io .lbl{font-weight:600;font-size:.95rem;margin-top:.7rem}
+.io pre{margin:.25rem 0 0;background:rgba(27,42,65,.07);border-radius:8px;padding:.6rem .8rem;font-size:.82rem;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+.proc{list-style:none;margin:.3rem 0 0;padding:0;display:grid;gap:.35rem;counter-reset:s}
+.proc li{counter-increment:s}
+.proc button{width:100%;text-align:left;display:flex;gap:.7rem;align-items:baseline;border:1.5px solid var(--line);background:#fff;border-radius:8px;padding:.55rem .75rem;transition:transform .16s var(--ease-out),border-color .16s ease,background-color .16s ease}
+.proc button::before{content:counter(s);font-variant-numeric:tabular-nums;font-weight:700;min-width:1.2rem;color:var(--muted)}
+.proc button:active{transform:scale(.99)}
+.proc button[aria-pressed="true"]{border-color:var(--srv);background:#E8F3EE}
+@media (hover:hover) and (pointer:fine){
+  .steps button:not([aria-current="step"]):hover{border-color:var(--ink);background:#E6EBF1}
+  .proc button:not([aria-pressed="true"]):hover{border-color:var(--ink);background:#F2F5F8}
+  .fn>summary:hover{background:rgba(27,42,65,.04)}
+  .link:hover{color:var(--ink)}
+  .crit label:hover,.checks label:hover{border-color:var(--ink)}
+}
+.callgraph{font-family:var(--mono);font-size:.84rem;background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:.8rem 1rem;overflow:auto;white-space:pre;margin:1rem 0}
+.back{margin-top:.8rem;font-size:.9rem}
+
+/* risks */
+.risks{display:grid;gap:1.1rem;margin-top:1.4rem;max-width:68ch;padding:0;list-style:none}
+.risks li{padding-left:1rem;border-left:4px solid var(--cf)}
+.risks b{display:block}
+.risks .fix{color:var(--muted);font-size:.95rem}
+.risks li.key{border-left-color:var(--bad)}
+
+/* runbook */
+.rb{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:2rem;margin-top:1.4rem;align-items:start}
+.checks{list-style:none;padding:0;margin:0;display:grid;gap:.5rem}
+.checks label{display:flex;gap:.75rem;align-items:flex-start;padding:.75rem .9rem;border:1.5px solid var(--line);border-radius:10px;background:var(--paper);cursor:pointer;touch-action:manipulation}
+.checks input{margin-top:.3rem;width:1.1rem;height:1.1rem;accent-color:var(--srv);flex:none}
+.checks label:has(input:checked){background:#E8F3EE;border-color:var(--srv)}
+.checks label:has(input:checked) span{text-decoration:line-through;text-decoration-color:rgba(27,42,65,.4)}
+.checks label:has(input:focus-visible){outline:3px solid var(--focus);outline-offset:2px}
+.field{display:grid;gap:.3rem;margin-bottom:.9rem}
+.field label{font-weight:600;font-size:.95rem}
+.field input{font:inherit;font-size:1rem;padding:.6rem .75rem;border:1.5px solid var(--ink);border-radius:8px;background:#fff;color:var(--ink);width:100%;min-width:0}
+.field input[aria-invalid="true"]{border-color:var(--bad)}
+.field .err{color:var(--bad);font-size:.88rem;min-height:1.3em}
+/* sequence diagram (timeline overview) */
+.seq-card{background:var(--code);color:var(--code-ink);border-radius:14px;padding:1.4rem;margin:1.6rem 0;border:1px solid rgba(255,255,255,.1);box-shadow:0 8px 24px rgba(27,42,65,.22)}
+.seq-top{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.6rem;margin-bottom:.9rem;border-bottom:1px solid rgba(255,255,255,.12);padding-bottom:.7rem}
+.seq-title{font-size:1.15rem;font-weight:700;display:flex;align-items:center;gap:.5rem;color:#fff;margin:0}
+.seq-hint{font-size:.82rem;color:#94A3B8}
+.seq-scroll{overflow-x:auto;border-radius:10px;background:#141923;padding:.8rem .4rem;-webkit-overflow-scrolling:touch}
+.seq-svg{display:block;min-width:880px;width:100%;height:auto;font-family:var(--sans)}
+.seq-step{cursor:pointer;transition:opacity .18s ease}
+.seq-step:hover text.lbl{fill:#60A5FA!important}
+.seq-step:hover line.al,.seq-step:hover path.ah{stroke:#60A5FA!important;fill:#60A5FA!important}
+.seq-step.active text.lbl{fill:#FDE047!important;font-weight:700}
+.seq-step.active line.al{stroke:#FDE047!important;stroke-width:2.2px!important}
+.seq-step.active rect.nb{stroke:#FDE047!important;stroke-width:2px!important}
+
+@media (max-width:900px){
+  .shell{grid-template-columns:minmax(0,1fr);gap:0;padding:0 1rem}
+  .toc{position:sticky;z-index:20;top:0;display:flex;gap:1.2rem;overflow-x:auto;padding:.6rem 0;margin:0 -1rem;padding-inline:1rem;background:var(--bg);border-bottom:1px solid var(--line);max-height:none}
+  .toc .grp{display:flex;gap:.9rem;margin:0;padding:0 0 0 .7rem;flex:none}
+  .toc .gs{display:none}
+  .toc .gt{display:none}
+  .toc a{white-space:nowrap;padding:.4rem 0}
+  .hero{grid-template-columns:minmax(0,1fr)}
+  .stations{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .rb{grid-template-columns:minmax(0,1fr)}
+  section{padding-top:3.2rem}
+}
+@media (max-width:480px){
+  .node{width:3.6rem;font-size:.74rem}
+  .node i{width:2.2rem;height:2.2rem}
+  .track{left:1.8rem;right:1.8rem;top:1.5rem}
+  .panel{padding:1.1rem 1rem}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .packet,#pop,#reply,.node i{transition:none!important}
+  #pop{transform:none}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#hanh-trinh">Bỏ qua tới phần hành trình</a>
+<noscript><p style="padding:1rem">Trang này cần JavaScript để hiển thị phần tương tác. Nội dung giải thích đầy đủ có trong tài liệu knowledge-base của dự án.</p></noscript>
+
+<div class="shell">
+  <nav class="toc" aria-label="Mục lục">
+    <div class="grp" data-tier="biz">
+      <span class="gt">Business</span><span class="gs">Vì sao cần</span>
+      <a href="#van-de">Vấn đề</a>
+      <a href="#lua-chon">Các lựa chọn</a>
+      <a href="#y-tuong">Ý tưởng giải</a>
+    </div>
+    <div class="grp" data-tier="tech">
+      <span class="gt">Technical</span><span class="gs">Chạy thế nào</span>
+      <a href="#toan-canh">Bức tranh toàn cảnh</a>
+      <a href="#hanh-trinh">Hành trình một câu hỏi</a>
+      <a href="#ben-trong">Bên trong server.py</a>
+    </div>
+    <div class="grp" data-tier="ops">
+      <span class="gt">Vận hành</span><span class="gs">Dùng thực tế</span>
+      <a href="#rui-ro">Giới hạn &amp; rủi ro</a>
+      <a href="#van-hanh">Khi hết token</a>
+    </div>
+  </nav>
+
+  <main id="main">
+    <header class="hero">
+      <div>
+        <h1>Agy hết hạn mức. Phần viết code chuyển sang GPU của Colab.</h1>
+        <p>Trang này giải thích hệ thống Colab Ollama MCP theo thứ tự một người mới cần hiểu: bài toán là gì, vì sao chọn cách này, rồi dữ liệu đi qua từng trạm và từng hàm trong <code translate="no">server.py</code> ra sao. Thuật ngữ được giải thích ngay chỗ nó xuất hiện: bấm vào chữ có gạch chân chấm.</p>
+        <p style="margin-bottom:0">Bài toán cần giải: khi <span id="tk"></span> của Agy cạn, làm sao vẫn viết code tiếp mà không rời IDE.</p>
+      </div>
+      <div>
+        <div class="chat" role="group" aria-label="Minh họa khung chat của Agy">
+          <div class="chat-h">Minh họa khung chat</div>
+          <div class="msg you">Viết hàm đảo ngược chuỗi trong Python</div>
+          <div class="msg sys" id="sysmsg">Đã hết hạn mức sử dụng. Hãy thử lại sau.</div>
+          <div class="msg agy pre" id="reply" hidden>
+            <pre translate="no">def reverse_string(s):
+    return s[::-1]</pre>
+            <span class="badge">⏱️ Hoàn tất trong 1.50s qua Colab GPU</span>
+          </div>
+          <button class="btn" id="demo" type="button">Gọi model trên Colab</button>
+          <p class="fine">Hình minh họa, không phải ảnh chụp thật.</p>
+        </div>
+      </div>
+    </header>
+
+    <section id="van-de" aria-labelledby="h-van-de">
+      <h2 id="h-van-de">Đang code dở thì hết hạn mức</h2>
+      <p class="lead">Agy gọi model của nhà cung cấp và bị tính hạn mức theo lượng chữ đã dùng. Dùng nhiều thì hạn mức cạn đúng lúc bạn cần nhất.</p>
+      <dl class="pain">
+        <div><dt>Gián đoạn đúng lúc gấp</dt><dd>Hạn mức cạn hoặc bị bóp tốc độ khi đang gần deadline. Bạn phải dừng hoặc chờ.</dd></div>
+        <div><dt>Chi phí khó đoán</dt><dd>Dự án lớn lên thì lượng code cần phân tích tăng theo và hóa đơn khó dự đoán.</dd></div>
+        <div><dt>Rời IDE để copy-paste</dt><dd>Chuyển sang một cửa sổ chat khác rồi dán code về làm đứt mạch làm việc.</dd></div>
+      </dl>
+    </section>
+
+    <section id="lua-chon" aria-labelledby="h-lua-chon">
+      <h2 id="h-lua-chon">Có những cách nào để code tiếp?</h2>
+      <p class="lead">Mỗi cách đổi một thứ lấy một thứ. Chọn điều bạn quan tâm để xem cách nào đáp ứng nhiều nhất.</p>
+      <fieldset>
+        <legend>Bạn cần điều gì?</legend>
+        <div class="crit" id="crit"></div>
+      </fieldset>
+      <div class="tw"><table id="opt"><caption class="sr">So sánh các cách tiếp tục code khi hết hạn mức</caption></table></div>
+      <p class="verdict" id="verdict" aria-live="polite"></p>
+      <p style="margin-top:1rem">Colab + MCP chọn đánh đổi này: model nhỏ hơn và phải bật Colab thủ công, đổi lại không cần GPU riêng, không rời IDE và dùng gói Colab bạn đã có.</p>
+    </section>
+
+    <section id="y-tuong" aria-labelledby="h-y-tuong">
+      <h2 id="h-y-tuong">Ý tưởng: bốn trạm nối nhau</h2>
+      <p class="lead">Agy không tự chạy model. Nó nhờ một công cụ nhỏ trên máy bạn chuyển câu hỏi sang GPU của Colab rồi nhận kết quả về.</p>
+      <div class="stations" id="stations"></div>
+      <p>Màu của mỗi trạm giữ nguyên ở phần hành trình bên dưới để bạn theo dõi dữ liệu đang ở đâu.</p>
+    </section>
+
+    <section id="toan-canh" aria-labelledby="h-toan-canh">
+      <h2 id="h-toan-canh">Bức tranh toàn cảnh (Sequence Timeline)</h2>
+      <p class="lead">Dòng thời gian tương tác giữa 6 thành phần từ lúc mở IDE đến khi code được Colab GPU sinh xong. Bấm vào bất kỳ bước nào trên sơ đồ để chuyển thẳng tới bước đó ở phần bên dưới.</p>
+      <div class="seq-card">
+        <div class="seq-top">
+          <h3 class="seq-title">⏱️ DÒNG THỜI GIAN TOÀN CẢNH (CHRONOLOGICAL TIMELINE)</h3>
+          <span class="seq-hint">💡 Bấm vào một bước hoặc mũi tên để đồng bộ với hành trình 9 bước bên dưới</span>
+        </div>
+        <div class="seq-scroll" tabindex="0" aria-label="Sơ đồ tương tác toàn cảnh dòng thời gian">
+          <svg class="seq-svg" viewBox="0 0 1020 810" width="1020" height="810" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sơ đồ tuần tự từ người dùng đến Colab GPU">
+            <defs>
+              <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><polygon points="0 1, 8 4, 0 7" fill="#93C5FD"/></marker>
+              <marker id="arr-ret" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><polygon points="0 1, 8 4, 0 7" fill="#38BDF8"/></marker>
+              <marker id="arr-cf" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><polygon points="0 1, 8 4, 0 7" fill="#FDBA74"/></marker>
+              <marker id="arr-colab" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><polygon points="0 1, 8 4, 0 7" fill="#FDE047"/></marker>
+              <marker id="arr-done" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><polygon points="0 1, 8 4, 0 7" fill="#4ADE80"/></marker>
+            </defs>
+
+            <!-- 6 Lifeline Dashed Columns -->
+            <line x1="70" y1="65" x2="70" y2="780" stroke="#334155" stroke-dasharray="4 4" stroke-width="1.5"/>
+            <line x1="230" y1="65" x2="230" y2="780" stroke="#334155" stroke-dasharray="4 4" stroke-width="1.5"/>
+            <line x1="410" y1="65" x2="410" y2="780" stroke="#334155" stroke-dasharray="4 4" stroke-width="1.5"/>
+            <line x1="590" y1="65" x2="590" y2="780" stroke="#334155" stroke-dasharray="4 4" stroke-width="1.5"/>
+            <line x1="770" y1="65" x2="770" y2="780" stroke="#334155" stroke-dasharray="4 4" stroke-width="1.5"/>
+            <line x1="940" y1="65" x2="940" y2="780" stroke="#334155" stroke-dasharray="4 4" stroke-width="1.5"/>
+
+            <!-- Lifeline Headers -->
+            <g>
+              <circle cx="70" cy="24" r="9" fill="none" stroke="#94A3B8" stroke-width="1.8"/>
+              <path d="M 59 43 C 59 36, 81 36, 81 43" fill="none" stroke="#94A3B8" stroke-width="1.8"/>
+              <text x="70" y="56" text-anchor="middle" font-size="12" font-weight="600" fill="#E2E8F0">👤 Người Dùng</text>
+
+              <rect x="155" y="16" width="150" height="36" rx="8" fill="#1E293B" stroke="#4B5BD7" stroke-width="1.8"/>
+              <text x="230" y="39" text-anchor="middle" font-size="12" font-weight="600" fill="#E2E8F0">🤖 Antigravity (Agy)</text>
+
+              <rect x="330" y="16" width="160" height="36" rx="8" fill="#1E293B" stroke="#64748B" stroke-width="1.8"/>
+              <text x="410" y="39" text-anchor="middle" font-size="12" font-weight="600" fill="#E2E8F0">💻 Hệ Điều Hành (OS)</text>
+
+              <rect x="515" y="16" width="150" height="36" rx="8" fill="#1E293B" stroke="#2F7D5B" stroke-width="1.8"/>
+              <text x="590" y="39" text-anchor="middle" font-size="12" font-weight="600" fill="#E2E8F0">⚙️ server.py (Local)</text>
+
+              <rect x="690" y="16" width="160" height="36" rx="8" fill="#1E293B" stroke="#F38020" stroke-width="1.8"/>
+              <text x="770" y="39" text-anchor="middle" font-size="12" font-weight="600" fill="#E2E8F0">🌐 Cloudflare Tunnel</text>
+
+              <rect x="855" y="16" width="160" height="36" rx="8" fill="#1E293B" stroke="#E0A100" stroke-width="1.8"/>
+              <text x="935" y="39" text-anchor="middle" font-size="12" font-weight="600" fill="#E2E8F0">☁️ Google Colab (GPU)</text>
+            </g>
+
+            <!-- Bước 1: Mở IDE & Spawn Subprocess -->
+            <g class="seq-step" data-step="1" tabindex="0" role="button" aria-label="Bước 1: Mở Agy và đọc config khởi động tiến trình con">
+              <line class="al" x1="70" y1="85" x2="222" y2="85" stroke="#93C5FD" stroke-width="1.8" marker-end="url(#arr)"/>
+              <text class="lbl" x="145" y="78" text-anchor="middle" font-size="11" fill="#CBD5E1">1. Mở IDE Antigravity</text>
+
+              <line class="al" x1="230" y1="118" x2="402" y2="118" stroke="#93C5FD" stroke-width="1.8" marker-end="url(#arr)"/>
+              <text class="lbl" x="320" y="111" text-anchor="middle" font-size="11" fill="#CBD5E1">Đọc config JSON &amp; Bắn lệnh Shell ngầm</text>
+
+              <line class="al" x1="410" y1="150" x2="582" y2="150" stroke="#93C5FD" stroke-width="1.8" marker-end="url(#arr)"/>
+              <text class="lbl" x="500" y="143" text-anchor="middle" font-size="11" fill="#CBD5E1">Khởi chạy python3 server.py --endpoint ...</text>
+            </g>
+
+            <!-- Bước 2: get_endpoint() -->
+            <g class="seq-step" data-step="2" tabindex="0" role="button" aria-label="Bước 2: server.py bóc tách cờ endpoint từ sys.argv">
+              <rect class="nb" x="515" y="172" width="220" height="25" rx="5" fill="#1E293B" stroke="#2F7D5B" stroke-width="1.4"/>
+              <text class="lbl" x="625" y="189" text-anchor="middle" font-size="10.5" font-weight="600" fill="#86EFAC">Hàm get_endpoint() bắt sys.argv</text>
+            </g>
+
+            <!-- Bước 3: main() lắng nghe stdin -->
+            <g class="seq-step" data-step="3" tabindex="0" role="button" aria-label="Bước 3: Hàm main mở vòng lặp đón nhận dòng JSON qua sys.stdin">
+              <rect class="nb" x="515" y="204" width="220" height="25" rx="5" fill="#1E293B" stroke="#2F7D5B" stroke-width="1.4"/>
+              <text class="lbl" x="625" y="221" text-anchor="middle" font-size="10.5" font-weight="600" fill="#86EFAC">Hàm main() mở lắng nghe sys.stdin</text>
+            </g>
+
+            <!-- Bước 4: Handshake JSON-RPC initialize & tools/list -->
+            <g class="seq-step" data-step="4" tabindex="0" role="button" aria-label="Bước 4: Bắt tay MCP initialize và tools/list">
+              <line class="al" x1="230" y1="242" x2="582" y2="242" stroke="#93C5FD" stroke-width="1.8" marker-end="url(#arr)"/>
+              <text class="lbl" x="410" y="235" text-anchor="middle" font-size="11" fill="#CBD5E1">Gửi JSON-RPC: initialize &amp; tools/list</text>
+
+              <rect class="nb" x="520" y="258" width="210" height="38" rx="5" fill="#1E293B" stroke="#2F7D5B" stroke-width="1.4"/>
+              <text class="lbl" x="625" y="273" text-anchor="middle" font-size="10" fill="#86EFAC">Hàm handle_request() phân luồng</text>
+              <text class="lbl" x="625" y="288" text-anchor="middle" font-size="10" fill="#86EFAC">Hàm send_response() xả flush()</text>
+
+              <line class="al" x1="590" y1="310" x2="238" y2="310" stroke="#38BDF8" stroke-dasharray="4 3" stroke-width="1.8" marker-end="url(#arr-ret)"/>
+              <text class="lbl" x="410" y="303" text-anchor="middle" font-size="11" fill="#BAE6FD">Trả kết quả schema công cụ cho Agy</text>
+            </g>
+
+            <!-- Giai đoạn 2 Divider -->
+            <rect x="40" y="334" width="940" height="26" rx="4" fill="#1E293B" stroke="#475569" stroke-width="1"/>
+            <text x="510" y="351" text-anchor="middle" font-size="11.5" font-weight="700" fill="#94A3B8" letter-spacing="1">GIAI ĐOẠN 2: NGƯỜI DÙNG CHAT &amp; SUY LUẬN GPU</text>
+
+            <!-- Bước 5: Người dùng gửi câu hỏi -> tools/call -->
+            <g class="seq-step" data-step="5" tabindex="0" role="button" aria-label="Bước 5: Người dùng gửi prompt và Agy tạo tools/call">
+              <line class="al" x1="70" y1="385" x2="222" y2="385" stroke="#93C5FD" stroke-width="1.8" marker-end="url(#arr)"/>
+              <text class="lbl" x="145" y="378" text-anchor="middle" font-size="11" fill="#CBD5E1">2. Gõ: "Viết hàm đảo chuỗi trong Python"</text>
+
+              <line class="al" x1="230" y1="418" x2="582" y2="418" stroke="#93C5FD" stroke-width="1.8" marker-end="url(#arr)"/>
+              <text class="lbl" x="410" y="411" text-anchor="middle" font-size="11" fill="#CBD5E1">Bơm JSON-RPC tools/call qua ống stdin</text>
+
+              <rect class="nb" x="495" y="435" width="250" height="26" rx="5" fill="#1E293B" stroke="#2F7D5B" stroke-width="1.4"/>
+              <text class="lbl" x="620" y="452" text-anchor="middle" font-size="10.5" fill="#86EFAC">handle_request() chuyển cho call_ollama_api()</text>
+            </g>
+
+            <!-- Bước 6: HTTP POST qua Cloudflare -->
+            <g class="seq-step" data-step="6" tabindex="0" role="button" aria-label="Bước 6: Gửi HTTPS POST /api/chat qua Cloudflare Tunnel">
+              <line class="al" x1="590" y1="485" x2="762" y2="485" stroke="#FDBA74" stroke-width="1.8" marker-end="url(#arr-cf)"/>
+              <text class="lbl" x="680" y="478" text-anchor="middle" font-size="11" fill="#FED7AA">Gửi HTTPS POST /api/chat xuyên qua Tunnel</text>
+            </g>
+
+            <!-- Bước 7: Forward vào localhost Colab -->
+            <g class="seq-step" data-step="7" tabindex="0" role="button" aria-label="Bước 7: Tunnel chuyển tiếp tới localhost 11434 trong Colab">
+              <line class="al" x1="770" y1="525" x2="932" y2="525" stroke="#FDE047" stroke-width="1.8" marker-end="url(#arr-colab)"/>
+              <text class="lbl" x="855" y="518" text-anchor="middle" font-size="11" fill="#FEF08A">Chuyển tiếp tới localhost:11434 của Colab</text>
+            </g>
+
+            <!-- Bước 8: Colab GPU sinh code -->
+            <g class="seq-step" data-step="8" tabindex="0" role="button" aria-label="Bước 8: Ollama nạp prompt vào GPU VRAM và sinh code">
+              <rect class="nb" x="825" y="555" width="210" height="42" rx="5" fill="#1E293B" stroke="#E0A100" stroke-width="1.4"/>
+              <text class="lbl" x="930" y="572" text-anchor="middle" font-size="10" fill="#FDE047">Ollama Daemon nạp prompt vào VRAM GPU</text>
+              <text class="lbl" x="930" y="588" text-anchor="middle" font-size="10" fill="#FDE047">Tính toán ma trận &amp; sinh mã code</text>
+            </g>
+
+            <!-- Bước 9: Trả response về qua các trạm và hiển thị -->
+            <g class="seq-step" data-step="9" tabindex="0" role="button" aria-label="Bước 9: Hồi đáp code qua tunnel về server.py rồi trả lại Agy và hiển thị">
+              <line class="al" x1="940" y1="625" x2="778" y2="625" stroke="#FDE047" stroke-dasharray="4 3" stroke-width="1.8" marker-end="url(#arr-colab)"/>
+              <text class="lbl" x="855" y="618" text-anchor="middle" font-size="10.5" fill="#FEF08A">Hồi đáp JSON chứa code</text>
+
+              <line class="al" x1="770" y1="658" x2="598" y2="658" stroke="#FDBA74" stroke-dasharray="4 3" stroke-width="1.8" marker-end="url(#arr-cf)"/>
+              <text class="lbl" x="680" y="651" text-anchor="middle" font-size="10.5" fill="#FED7AA">Trả kết quả về cho call_ollama_api()</text>
+
+              <rect class="nb" x="515" y="678" width="220" height="38" rx="5" fill="#1E293B" stroke="#2F7D5B" stroke-width="1.4"/>
+              <text class="lbl" x="625" y="694" text-anchor="middle" font-size="10" fill="#86EFAC">Bấm giờ elapsed &amp; đóng gói kết quả</text>
+              <text class="lbl" x="625" y="709" text-anchor="middle" font-size="10" fill="#86EFAC">Hàm send_response() xả ra stdout</text>
+
+              <line class="al" x1="590" y1="738" x2="238" y2="738" stroke="#38BDF8" stroke-dasharray="4 3" stroke-width="1.8" marker-end="url(#arr-ret)"/>
+              <text class="lbl" x="410" y="731" text-anchor="middle" font-size="11" fill="#BAE6FD">Nhận JSON-RPC Content Block</text>
+
+              <line class="al" x1="230" y1="770" x2="78" y2="770" stroke="#4ADE80" stroke-width="2" marker-end="url(#arr-done)"/>
+              <text class="lbl" x="145" y="763" text-anchor="middle" font-size="11" font-weight="700" fill="#86EFAC">3. Hiển thị code hoàn chỉnh lên khung chat!</text>
+            </g>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <section id="hanh-trinh" aria-labelledby="h-hanh-trinh">
+      <h2 id="h-hanh-trinh">Hành trình của một câu hỏi</h2>
+      <p class="lead">Giả sử Colab đang chạy và bạn đã dán URL của nó vào cấu hình Agy. Chuyện gì xảy ra từ lúc Agy mở đến lúc code hiện lên?</p>
+      <div class="player" id="player">
+        <div class="rail" aria-hidden="true">
+          <div class="track"><div class="packet" id="packet"></div></div>
+          <div class="stn" id="rail"></div>
+        </div>
+        <div class="steps" id="steps" role="group" aria-label="Chọn bước 1 đến 9"></div>
+        <article class="panel" id="panel" aria-live="polite" aria-atomic="true"></article>
+        <div class="ctrl">
+          <button class="btn alt" id="prev" type="button">Bước trước</button>
+          <button class="btn" id="next" type="button">Bước tiếp</button>
+          <button class="btn alt" id="play" type="button" aria-pressed="false">Phát tự động</button>
+          <span class="hint">Khi đang chọn một nút trong khung này, dùng phím <kbd>←</kbd> <kbd>→</kbd> để đổi bước.</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="ben-trong" aria-labelledby="h-ben-trong">
+      <h2 id="h-ben-trong">Bên trong server.py: 5 hàm</h2>
+      <p class="lead">Mỗi hàm sinh ra để gỡ một trở ngại cụ thể. Mở từng hàm: nhu cầu, trở ngại, code, rồi chạy thử một ví dụ và bấm từng bước để thấy dòng code đang chạy. Các hàm xếp theo thứ tự chúng chạy.</p>
+      <pre class="callgraph" translate="no">main()  ──gọi một lần──▶  get_endpoint()
+  │
+  └─ mỗi dòng stdin ──▶  handle_request()  ──▶  call_ollama_api()
+                                │
+                                └──────────▶  send_response()</pre>
+      <div id="funcs"></div>
+    </section>
+
+    <section id="rui-ro" aria-labelledby="h-rui-ro">
+      <h2 id="h-rui-ro">Giới hạn và rủi ro</h2>
+      <ul class="risks" id="risks"></ul>
+    </section>
+
+    <section id="van-hanh" aria-labelledby="h-van-hanh">
+      <h2 id="h-van-hanh">Khi Agy hết token: làm gì</h2>
+      <p class="lead">Bốn bước theo thứ tự. Các ô tích được lưu lại trên trình duyệt này.</p>
+      <div class="rb">
+        <div>
+          <ol class="checks" id="checks" style="padding:0"></ol>
+          <div class="ctrl"><button class="btn alt" id="reset" type="button">Bỏ tích tất cả</button></div>
+        </div>
+        <div>
+          <div class="field">
+            <label for="url">URL từ Colab</label>
+            <input id="url" name="url" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://tên-ngẫu-nhiên.trycloudflare.com" aria-describedby="url-err">
+            <div class="err" id="url-err"></div>
+          </div>
+          <div class="field">
+            <label for="path">Đường dẫn server.py</label>
+            <input id="path" name="path" type="text" autocomplete="off" spellcheck="false" value="/Users/marchhygge/MarchHygge/project/colab-ollama-mcp/colab_ollama_mcp/server.py">
+          </div>
+          <pre class="cfg" id="cfg" translate="no" tabindex="0" aria-label="Cấu hình MCP được tạo"></pre>
+          <button class="btn" id="copy" type="button">Sao chép cấu hình</button>
+          <span class="sr" id="copied" role="status" aria-live="polite"></span>
+          <p class="fine" id="copyfine"></p>
+        </div>
+      </div>
+    </section>
+
+    <footer class="foot">
+      <p>Nội dung dựa trên knowledge-base <code translate="no">colab-ollama-mcp</code> (ARC-01 đến ARC-03, MCP-01 đến MCP-03). Code ở đây là bản rút gọn trong MCP-03, viết để dễ học. File <code translate="no">colab_ollama_mcp/server.py</code> trong repo là bản đầy đủ hơn với nhiều công cụ và báo lỗi chi tiết hơn.</p>
+    </footer>
+  </main>
+</div>
+
+<div id="pop" role="dialog" aria-label="Giải thích thuật ngữ" hidden></div>
+
+<script>
+'use strict';
+/* ===== DATA ===== */
+const TERMS={
+ token:{n:'Token',full:'Subword Unit (Đơn vị từ vựng cơ bản của LLM)',
+  d:'Đoạn ký tự con nhỏ nhất mà thuật toán mã hóa (tokenizer) cắt nhỏ từ câu văn bản để mô hình ngôn ngữ lớn (LLM) có thể hiểu dưới dạng vector số học. Trung bình 1 token ≈ 0.75 từ tiếng Anh, hoặc từ 1 đến 2 ký tự tiếng Việt có dấu. Giới hạn context window và cước phí API đều đo bằng token.',
+  e:'Như số phút gọi trong gói cước di động: dùng hết phút thì bị khóa chiều gọi, phải chờ nạp thêm tiền hoặc sang chu kỳ mới.'},
+ process:{n:'Tiến trình con (Subprocess)',full:'Operating System Child Process',
+  d:'Một phiên bản chương trình độc lập được hệ điều hành (OS Kernel) cấp phát không gian địa chỉ bộ nhớ (virtual memory), bảng mô tả file (file descriptors) và mã định danh (PID) riêng biệt, sinh ra từ tiến trình cha (Agy). Hai bên không chung RAM mà giao tiếp qua đường ống dẫn (pipe).',
+  e:'Như văn phòng giám đốc (Agy) tuyển riêng một trợ lý (server.py) ngồi phòng bên cạnh, giao việc qua một ô cửa sổ nhỏ khoét trên tường.'},
+ argv:{n:'sys.argv',full:'System Argument Vector (Mảng đối số dòng lệnh hệ thống)',
+  d:'Mảng các chuỗi ký tự (vector) do hệ điều hành nạp vào bộ nhớ của chương trình Python ngay lúc khởi chạy. Phần tử <code>sys.argv[0]</code> luôn là đường dẫn file mã nguồn (<code>server.py</code>), còn <code>sys.argv[1..]</code> chứa các cờ cấu hình (như <code>--endpoint URL</code>).',
+  e:'Như tờ giấy ghi chú nhiệm vụ mà quản lý nhét sẵn vào túi áo nhân viên trước khi lên đường: mở túi ra đọc là biết cần đi tới địa chỉ nào.'},
+ flag:{n:'Cờ dòng lệnh (CLI Flag)',full:'Command-Line Interface Option / Flag',
+  d:'Tham số có tiền tố dấu gạch ngang (như <code>--endpoint</code>) dùng để dán nhãn ngữ nghĩa cho giá trị đứng liền sau nó trong lệnh CLI, giúp chương trình phân biệt địa chỉ URL với các thiết lập khác mà không phụ thuộc thứ tự truyền.',
+  e:'Như nhãn dán "Địa chỉ nhận:" dán trước ô ghi địa chỉ trên bưu phẩm, để người bóc thư biết chữ tiếp theo là địa chỉ chứ không phải tên người gửi.'},
+ stdio:{n:'stdio (stdin & stdout)',full:'Standard Input & Standard Output (Luồng vào / ra tiêu chuẩn POSIX)',
+  d:'Các luồng truyền dữ liệu dạng dòng văn bản (File Descriptors 0 cho stdin, 1 cho stdout) do nhân OS tự động cấp phát khi tiến trình sinh ra. Agy nối luồng output của nó vào <code>stdin</code> của server, và đọc kết quả từ <code>stdout</code> của server. Cơ chế này chạy hoàn toàn trong bộ nhớ RAM của OS Kernel (pipe), không cần mở cổng mạng (port), không sợ trùng cổng và không bị tường lửa (Firewall) chặn.',
+  e:'Hai phòng sát vách đục một ống nhựa xuyên tường: bên này nhét mảnh giấy vào ống thì bên kia rút ra đọc, người ngoài hành lang không can thiệp được.'},
+ blocking:{n:'Chờ chặn (Blocking I/O)',full:'Blocking Input/Output Operation',
+  d:'Cơ chế đồng bộ trong đó hệ điều hành tạm dừng luồng thực thi (thread) của tiến trình khi chưa có dữ liệu mới trên đường ống <code>sys.stdin</code>. Tiến trình được đưa vào hàng đợi ngủ (sleep queue), giải phóng 100% CPU. Khi có một dòng JSON mới rơi vào ống, kernel đánh thức tiến trình dậy xử lý tiếp.',
+  e:'Nhân viên trực tổng đài ngồi uống trà thảnh thơi chờ chuông reo, chuông reo mới nhấc máy; không phải cứ 1 giây lại tự hỏi "có ai gọi không" làm kiệt sức.'},
+ eof:{n:'EOF',full:'End Of File (Tín hiệu kết thúc luồng dữ liệu)',
+  d:'Tín hiệu đặc biệt do hệ điều hành phát ra khi đầu ghi của đường ống (Agy) bị đóng lại (khi tắt phần mềm hoặc crash). Vòng lặp <code>for line in sys.stdin</code> nhận EOF sẽ lập tức kết thúc vòng lặp, giúp tiến trình Python tự thoát êm đẹp (clean exit) mà không bị treo tiến trình rác (zombie process).',
+  e:'Như tiếng tút tút kéo dài khi đầu dây bên kia cúp máy: bạn biết người ta đã ngắt cuộc gọi nên đặt ống nghe xuống nghỉ.'},
+ json:{n:'JSON',full:'JavaScript Object Notation (Ký hiệu đối tượng JavaScript)',
+  d:'Định dạng dữ liệu tiêu chuẩn mở dạng văn bản thuần (plain text), biểu diễn thông tin bằng các cặp khóa - giá trị (<code>"key": value</code>) và mảng (<code>[ ... ]</code>). Dễ đọc với con người và mọi ngôn ngữ lập trình (Python, C++, Java...) đều có thư viện phân tích cú pháp (parse) cực nhanh.',
+  e:'Tờ khai lý lịch có các ô điền sẵn: "Tên": "An", "Tuổi": 25. Bất cứ ai đọc vào cũng biết thông tin gì nằm ở mục nào.'},
+ jsonrpc:{n:'JSON-RPC 2.0',full:'JSON Remote Procedure Call version 2.0 (Giao thức gọi thủ tục từ xa qua JSON)',
+  d:'Giao thức chuẩn không trạng thái (stateless) để gửi thông điệp yêu cầu chạy hàm từ xa. Quy định cấu trúc bắt buộc: <code>jsonrpc: "2.0"</code>, <code>method</code> (tên hàm cần gọi), <code>params</code> (tham số) và <code>id</code> (mã định danh duy nhất của lượt gọi). Phía server khi trả về phải kèm đúng <code>id</code> đó để bên gửi ghép đúng câu trả lời cho câu hỏi.',
+  e:'Phiếu gửi hàng có dán mã barcode vận đơn: bạn gửi gói hàng #100 thì khi giao nhận xong, biên lai hoàn tất cũng in đúng mã #100 để bạn biết đơn hàng nào đã xong.'},
+ mcp:{n:'MCP',full:'Model Context Protocol (Giao thức ngữ cảnh mô hình)',
+  d:'Giao thức mở tiêu chuẩn công nghiệp do Anthropic khởi xướng, dùng kiến trúc Client-Server chạy trên nền JSON-RPC 2.0 qua stdio hoặc SSE. Cho phép các trợ lý AI (như Antigravity, Claude Code) kết nối và khám phá (discover) công cụ (tools), tài nguyên file (resources) hoặc mẫu lệnh từ các ứng dụng bên thứ ba một cách đồng nhất và an toàn.',
+  e:'Như cổng USB Type-C cho trí tuệ nhân tạo: bất kỳ công cụ ngoài nào cắm đúng chuẩn giao thức đều được trợ lý AI nhận diện và gọi được ngay.'},
+ tool:{n:'Công cụ (Tool / Function Calling)',full:'MCP Tool Definition / Function Calling Schema',
+  d:'Một định nghĩa chức năng được server đăng ký với AI qua phương thức <code>tools/list</code>, gồm tên công cụ (<code>name</code>), mô tả chức năng (<code>description</code>) và lược đồ tham số đầu vào (<code>inputSchema</code> theo chuẩn JSON Schema). Khi AI nhận thấy cần giải bài toán của người dùng, nó tự tạo một bản tin <code>tools/call</code> với các tham số tương ứng.',
+  e:'Như một chiếc nút bấm trên bảng điều khiển: có ghi rõ công dụng và có các khe để cắm đúng loại dây vào.'},
+ http:{n:'HTTP POST',full:'HyperText Transfer Protocol - POST Method (Giao thức truyền siêu văn bản - Phương thức gửi dữ liệu)',
+  d:'Phương thức mạng trong bộ giao thức HTTP/1.1 được thiết kế để đẩy một khối dữ liệu lớn (payload JSON chứa prompt và cấu hình model) nằm trong phần thân (Request Body) lên máy chủ đích xử lý, trả về mã trạng thái (200 OK) và dữ liệu hồi đáp.',
+  e:'Như bạn gửi một kiện hàng vào hòm thư bưu điện: dán địa chỉ bên ngoài, bên trong chứa toàn bộ tài liệu cần xử lý và đứng chờ bưu tá trả kết quả.'},
+ timeout:{n:'Timeout (Thời hạn chờ ngắt)',full:'Network Request Timeout Threshold',
+  d:'Khoảng thời gian tối đa mà tiến trình client chấp nhận chờ đợi phản hồi từ máy chủ trước khi chủ động hủy kết nối (hủy socket). Ở đây đặt 120 giây nhằm bảo vệ hệ thống: nếu GPU Colab quá tải hoặc đường truyền mạng đứt, client sẽ báo lỗi rõ ràng thay vì rơi vào trạng thái treo vô hạn (hang).',
+  e:'Gọi điện thoại reo chuông quá 2 phút không ai nhấc máy thì bạn chủ động cúp máy để làm việc khác, không giữ ống nghe mãi trên tai.'},
+ nat:{n:'NAT',full:'Network Address Translation (Kỹ thuật biên dịch địa chỉ mạng)',
+  d:'Cơ chế định tuyến của hạ tầng đám mây Google cho phép nhiều máy ảo Colab chia sẻ chung các IP công khai để truy cập ra ngoài Internet, nhưng chặn toàn bộ các kết nối từ Internet đi thẳng vào mạng nội bộ của Colab. Do đó máy cá nhân của bạn không thể trực tiếp ping hay gọi HTTP vào IP của Colab.',
+  e:'Như chung cư có cổng bảo vệ khép kín: cư dân bên trong thoải mái ra ngoài phố, nhưng người lạ từ ngoài phố không thể tự ý bước vào căn hộ nếu không có người trong nhà dẫn vào.'},
+ tunnel:{n:'Đường hầm ngược (Reverse Tunnel)',full:'Cloudflare Quick Tunnel / Reverse Proxy Tunnel',
+  d:'Cơ chế trong đó tiến trình <code>cloudflared</code> chạy bên trong Colab chủ động mở một kết nối TLS ra các máy chủ Edge công khai của Cloudflare. Khi client từ máy bạn gửi request tới URL <code>trycloudflare.com</code>, Cloudflare sẽ chuyển tiếp (proxy) ngược yêu cầu qua đường hầm đã duy trì sẵn vào cổng <code>localhost:11434</code> của Colab, vượt qua hoàn toàn rào cản NAT và tường lửa.',
+  e:'Người trong căn chung cư bí mật gọi điện thoại ra bưu điện và giữ máy liên tục; khi có thư đến, bưu điện đọc nội dung qua ống nghe để người bên trong chép lại.'},
+ ollama:{n:'Ollama Daemon',full:'Ollama Local Large Language Model Server Engine',
+  d:'Phần mềm quản lý và phục vụ mô hình ngôn ngữ lớn (LLM Runner), tự động quản lý việc tải model từ Hub, cấp phát bộ nhớ GPU/CPU, và mở một máy chủ HTTP RESTful tại cổng <code>localhost:11434</code> để tiếp nhận các yêu cầu suy luận prompt (inference).',
+  e:'Như người bếp trưởng nhận thực đơn từ bồi bàn tại cửa bếp (cổng 11434), sau đó chỉ đạo các đầu bếp chế biến đúng món ăn theo công thức đã học.'},
+ vram:{n:'VRAM',full:'Video Random Access Memory (Bộ nhớ truy cập ngẫu nhiên của card đồ họa)',
+  d:'Bộ nhớ bán dẫn tốc độ cực cao gắn trực tiếp trên bảng mạch GPU, có băng thông hàng trăm GB/s. Để mô hình AI tính toán sinh code nhanh, toàn bộ hàng tỷ tham số trọng số ma trận số thực (weights) phải được tải sẵn và lưu trú trong VRAM của GPU (như Tesla T4 16GB trên Colab).',
+  e:'Mặt bàn đá chuyên dụng cực rộng của đầu bếp: toàn bộ gia vị và nguyên liệu cần thiết bày sẵn trước mặt thì nấu mới nhanh, không phải mất công chạy ra kho lấy từng lạng đường.'},
+ buffer:{n:'Bộ đệm I/O (I/O Buffer)',full:'Input/Output Memory Buffer',
+  d:'Vùng nhớ RAM tạm thời do hệ điều hành và thư viện runtime Python sử dụng để gom các ký tự trước khi thực sự ghi xuống đường ống (pipe) hoặc file. Việc gom đệm giúp giảm tải số lượng lệnh gọi hệ thống (system calls), nhưng có thể làm trễ thông điệp nếu kích thước chuỗi chưa đủ đầy bộ đệm (thường là 4KB hoặc 8KB).',
+  e:'Bác đưa thư gom thư vào túi xách, đợi gom đủ 20 lá thư mới đạp xe đi phát một lượt để đỡ tốn công đi lại nhiều lần.'},
+ flush:{n:'flush()',full:'I/O Buffer Flush Operation (Lệnh cưỡng bức xả bộ đệm)',
+  d:'Hàm ép hệ thống ghi lập tức toàn bộ dữ liệu đang còn ứ đọng trong bộ đệm RAM ra thiết bị đầu cuối hoặc đường ống truyền (pipe) mà không cần chờ bộ đệm đầy. Trong kiến trúc JSON-RPC qua stdio, việc gọi <code>sys.stdout.flush()</code> ngay sau khi ghi dòng JSON là bắt buộc để Agy ở đầu bên kia nhận được tin tức thời.',
+  e:'Bảo bác bưu tá: "Lá thư hỏa tốc này rất gấp, xin hãy đi phát ngay lập tức không cần chờ đầy túi".'},
+ ide:{n:'IDE',full:'Integrated Development Environment (Môi trường phát triển tích hợp)',
+  d:'Phần mềm tập hợp toàn diện các công cụ hỗ trợ lập trình viên trong một giao diện duy nhất: bộ soạn thảo mã nguồn (code editor), trình biên dịch/thông dịch, terminal dòng lệnh, trình gỡ lỗi (debugger) và các hệ thống mở rộng hỗ trợ AI (như Antigravity, VSCode, Cursor).',
+  e:'Như một xưởng cơ khí hiện đại trang bị đầy đủ máy cắt, máy hàn, thước đo và tủ dụng cụ ngay trong một phòng, thợ chỉ cần đứng một chỗ là làm xong sản phẩm.'},
+ gpu:{n:'GPU',full:'Graphics Processing Unit (Bộ xử lý đồ họa / Bộ tính toán song song)',
+  d:'Bộ vi xử lý phần cứng được thiết kế chuyên biệt với hàng nghìn lõi (cores) tính toán nhỏ hoạt động đồng thời (song song khối lượng lớn - massively parallel processing). Cực kỳ tối ưu cho các phép nhân và cộng ma trận số thực nhiều chiều — nền tảng cốt lõi của mạng nơ-ron học sâu (Deep Learning).',
+  e:'So với CPU là 1 giáo sư toán học siêu giỏi giải tuần tự từng bài toán khó, GPU là một hội trường gồm 2.000 học sinh cùng nhau tính 2.000 phép tính cộng nhân đơn giản trong 1 giây.'},
+ api:{n:'API',full:'Application Programming Interface (Giao diện lập trình ứng dụng)',
+  d:'Bộ quy ước chuẩn hóa (endpoint URL, phương thức HTTP, cấu trúc body JSON) cho phép hai chương trình phần mềm độc lập giao tiếp và trao đổi dữ liệu với nhau mà không cần biết cấu trúc mã nguồn bên trong của nhau.',
+  e:'Quyển thực đơn tại nhà hàng: bạn chỉ cần chọn đúng tên món và số lượng ghi trên thực đơn gửi cho bồi bàn, nhà bếp sẽ nấu đúng món bạn muốn mà bạn không cần biết công thức bí mật của bếp.'},
+ url:{n:'URL',full:'Uniform Resource Locator (Chuỗi định vị tài nguyên thống nhất trên mạng)',
+  d:'Chuỗi ký tự tham chiếu địa chỉ tiêu chuẩn dùng để xác định vị trí của một tài nguyên trên mạng Internet (gồm giao thức <code>https://</code>, tên miền hoặc IP máy chủ, và đường dẫn path tài nguyên như <code>/api/chat</code>).',
+  e:'Địa chỉ nhà đầy đủ bao gồm: Quốc gia, Tỉnh/Thành phố, Tên đường và Số nhà, đảm bảo bưu tá đưa thư đến đúng cửa.'}
+};
+const STATIONS=[
+ {id:'agy',n:'Antigravity',s:'máy bạn',c:'var(--agy)',d:'Nơi bạn gõ câu hỏi. Agy tự bật <code>server.py</code> và nói chuyện với nó.'},
+ {id:'srv',n:'server.py',s:'máy bạn',c:'var(--srv)',d:'Người phiên dịch. Nhận yêu cầu từ Agy theo chuẩn MCP và đổi thành yêu cầu mạng mà Ollama hiểu.'},
+ {id:'cf',n:'Cloudflare',s:'internet',c:'var(--cf)',d:'Con đường vào Colab. Colab không có địa chỉ công khai nên cần một đường hầm.'},
+ {id:'colab',n:'Colab GPU',s:'Google Cloud',c:'var(--colab)',d:'Ollama chạy model <code>qwen2.5-coder:7b</code> trên GPU, sinh code rồi trả ngược lại.'}
+];
+const STEPS=[
+ {t:'Agy mở và bật server.py',at:[0,1],pos:.5,fn:null,
+  w:'Khi bạn mở Agy, nó đọc cấu hình MCP rồi chạy lệnh trong đó như một [[process|tiến trình con]]. Lệnh có kèm địa chỉ Colab mới nhất. Python nhận phần này dưới dạng [[argv|‹sys.argv›]], gồm các [[flag|cờ]] như ‹--endpoint›.',
+  y:'Colab cấp một URL mới mỗi lần bật. Đưa URL vào cấu hình của Agy thì không phải mở code ra sửa.',
+  p:'$ python3 server.py --endpoint <mark>https://quick-fox-99.trycloudflare.com</mark>\n\nsys.argv = [\'server.py\', \'--endpoint\', <mark>\'https://quick-fox-99.trycloudflare.com\'</mark>]'},
+ {t:'get_endpoint() lấy địa chỉ Colab',at:[1],pos:1,fn:'get_endpoint',
+  w:'Hàm duyệt ‹sys.argv›, thấy cờ ‹--endpoint› thì lấy giá trị ngay sau nó.',
+  y:'URL nằm ngoài code, nên đổi URL chỉ cần sửa một dòng cấu hình.',
+  p:'sys.argv[1] == \'--endpoint\'   →  khớp\nsys.argv[2]                 →  giá trị cần lấy\n\nendpoint = \'<mark>https://quick-fox-99.trycloudflare.com</mark>\''},
+ {t:'main() ngồi chờ ở đầu ống',at:[1],pos:1,fn:'main',
+  w:'Server mở vòng đọc [[stdio|stdin]]. Chưa có gì để đọc nên hệ điều hành cho nó ngủ ([[blocking|chờ không tốn sức]]). Khi bạn tắt Agy, ống đóng lại và server gặp [[eof|EOF]], vòng đọc tự kết thúc.',
+  y:'Trợ lý phải sẵn sàng cả buổi làm việc nhưng không được đốt CPU để chờ.',
+  p:'server.py  ⟵  stdin: (trống, đang chờ…)\nCPU        ≈ 0%'},
+ {t:'Bắt tay và khai báo công cụ',at:[0,1],pos:.5,fn:'handle_request',
+  w:'Agy gửi hai tin theo chuẩn [[jsonrpc|JSON-RPC 2.0]], mỗi tin là một dòng [[json|JSON]]: ‹initialize› để chào hỏi và ‹tools/list› để hỏi có công cụ gì. Đây là cách [[mcp|MCP]] vận hành. Server trả mỗi tin một câu trả lời mang đúng ‹id›, trong đó có công cụ [[tool|‹ollama_chat›]].',
+  y:'Agy chỉ hiện công cụ sau khi server chào đúng khuôn. Sai khuôn thì Agy báo lỗi bắt tay.',
+  p:'Agy → server  {"jsonrpc":"2.0","id":<mark>2</mark>,"method":"tools/list"}\nserver → Agy  {"jsonrpc":"2.0","id":<mark>2</mark>,"result":{"tools":[{"name":"ollama_chat", …}]}}'},
+ {t:'Bạn gõ câu hỏi, Agy gọi công cụ',at:[0,1],pos:.5,fn:'handle_request',
+  w:'Bạn gõ câu hỏi. Agy chọn công cụ ‹ollama_chat› và gửi tin ‹tools/call›, câu hỏi nằm trong ‹arguments.prompt›. ‹handle_request()› nhận ra ‹method›, lấy ‹prompt› ra.',
+  y:'Để phần sinh code nặng chạy trên GPU Colab, không do model của hãng làm.',
+  p:'{"jsonrpc":"2.0","id":<mark>100</mark>,"method":"tools/call",\n "params":{"name":"ollama_chat",\n   "arguments":{"prompt":"Viết hàm đảo ngược chuỗi trong Python"}}}'},
+ {t:'call_ollama_api() dựng yêu cầu mạng',at:[1],pos:1,fn:'call_ollama_api',
+  w:'Hàm đổi câu hỏi thành một yêu cầu [[http|HTTP POST]] đúng khuôn của Ollama, đặt [[timeout|timeout]] 120 giây và bấm đồng hồ.',
+  y:'Ollama không biết JSON-RPC, nó chỉ hiểu ‹POST /api/chat›. Mạng cũng có thể treo nên cần giới hạn thời gian chờ.',
+  p:'POST <mark>https://quick-fox-99.trycloudflare.com/api/chat</mark>\n\n{"model":"qwen2.5-coder:7b",\n "messages":[{"role":"user","content":"Viết hàm đảo ngược chuỗi trong Python"}],\n "stream":false}'},
+ {t:'Qua đường hầm Cloudflare vào Colab',at:[2],pos:2,fn:null,
+  w:'Yêu cầu tới địa chỉ công khai của Cloudflare. Colab nằm sau [[nat|NAT]] nên không ai gọi thẳng vào được. Nhưng ‹cloudflared› trong Colab đã tự mở sẵn một [[tunnel|đường hầm]] ra ngoài, nên Cloudflare luồn yêu cầu ngược vào cổng nội bộ của Colab.',
+  y:'Không có đường hầm thì máy bạn không có cách nào chạm tới GPU của Colab.',
+  p:'máy bạn  →  https://quick-fox-99.trycloudflare.com\nCloudflare  →  (đường hầm đã mở sẵn)  →  <mark>localhost:11434</mark> trong Colab'},
+ {t:'GPU sinh code',at:[3],pos:3,fn:null,
+  w:'[[ollama|Ollama]] nhận câu hỏi, nạp model vào [[vram|VRAM]] (nếu chưa có) rồi GPU sinh ra đoạn code. Vì ‹stream: false› nên nó trả toàn bộ câu trả lời một lần.',
+  y:'Đây là phần tốn sức nhất và là lý do dùng GPU của Colab thay vì máy bạn.',
+  p:'{"model":"qwen2.5-coder:7b",\n "message":{"role":"assistant",\n   "content":"<mark>def reverse_string(s):\\n    return s[::-1]</mark>"},\n "done":true}'},
+ {t:'Kết quả quay về khung chat',at:[0],pos:0,fn:'send_response',
+  w:'‹call_ollama_api()› lấy ‹message.content› và thời gian chạy. ‹handle_request()› ghép thêm nhãn thời gian rồi gọi ‹send_response()›. Hàm này ghi một dòng ra stdout và gọi [[flush|flush]] để đẩy dòng đó khỏi [[buffer|bộ đệm]]. Agy đọc dòng ấy và hiện lên khung chat.',
+  y:'Thiếu flush thì tin nằm yên trong bộ đệm và Agy chờ mãi như bị treo.',
+  p:'{"jsonrpc":"2.0","id":<mark>100</mark>,"result":{"content":[{"type":"text",\n "text":"def reverse_string(s):\\n    return s[::-1]\\n\\n[⏱️ Hoàn tất trong 1.50s qua Colab GPU]"}]}}'}
+];
+const FUNCS=[
+ {id:'get_endpoint',step:2,sum:'Lấy địa chỉ Colab từ dòng lệnh',
+  need:'Mỗi lần bật lại Colab có một URL mới. Bạn chỉ muốn dán URL mới vào cấu hình của Agy, không muốn mở file code ra sửa.',
+  prob:'Nếu ghi cứng URL trong code, mỗi lần đổi URL phải sửa file Python, dễ gõ nhầm và làm hỏng file.',
+  does:'Đọc [[argv|‹sys.argv›]] để tìm [[flag|cờ]] ‹--endpoint› rồi lấy giá trị ngay sau nó.',
+  code:String.raw`def get_endpoint():
+    """Quét tham số dòng lệnh để lấy URL endpoint của Colab qua Cloudflare."""
+    for i, arg in enumerate(sys.argv):
+        if arg == "--endpoint" and i + 1 < len(sys.argv):
+            return sys.argv[i + 1]
+    return "https://YOUR-TUNNEL-URL.trycloudflare.com"`,
+  inp:"sys.argv = ['server.py', '--endpoint', 'https://quick-fox-99.trycloudflare.com']",
+  proc:[
+   {t:'Duyệt từng phần tử. Ở vị trí 0, <code>"server.py"</code> không phải cờ nên bỏ qua.',h:['for i, arg']},
+   {t:'Ở vị trí 1 gặp <code>"--endpoint"</code> và còn phần tử phía sau (<code>1 + 1 &lt; 3</code>), điều kiện đúng.',h:['if arg ==']},
+   {t:'Trả về phần tử ở vị trí 2, tức là chính URL.',h:['return sys.argv']},
+   {t:'Nhánh dự phòng: nếu không có cờ, trả URL mẫu. Khi đó mọi lần gọi sau đều báo lỗi kết nối.',h:['return "https']}
+  ],
+  out:'"https://quick-fox-99.trycloudflare.com"   (kiểu str)'},
+ {id:'main',step:3,sum:'Giữ server luôn sống và chờ lệnh',
+  need:'Trợ lý phải sẵn sàng suốt buổi làm việc 4 đến 8 tiếng. Bạn không muốn chạy lại lệnh mỗi lần hỏi.',
+  prob:'Một file Python chạy hết dòng cuối là thoát. Dùng vòng <code>while True</code> trống thì CPU chạy 100% chỉ để chờ.',
+  does:'Lấy endpoint một lần, rồi đọc [[stdio|stdin]] theo từng dòng. Khi chưa có dòng nào, tiến trình ngủ ([[blocking|chờ không tốn sức]]).',
+  code:String.raw`def main():
+    """Vòng lặp duy trì tiến trình lắng nghe yêu cầu từ Antigravity qua stdin."""
+    endpoint = get_endpoint()
+    for line in sys.stdin:
+        if line.strip():
+            handle_request(line.strip(), endpoint)
+
+if __name__ == "__main__":
+    main()`,
+  inp:'stdin nhận dòng: {"jsonrpc":"2.0","id":1,"method":"initialize"}\\n',
+  proc:[
+   {t:'Python chạy file và gọi <code>main()</code>.',h:['__name__ ==']},
+   {t:'Lấy URL từ <code>get_endpoint()</code>, chỉ một lần.',h:['endpoint = get_endpoint()']},
+   {t:'Vòng <code>for</code> chờ dòng mới. Chưa có gì thì tiến trình ngủ, CPU gần 0%.',h:['for line in sys.stdin']},
+   {t:'Có dòng mới thì bỏ khoảng trắng thừa. Dòng trống bị bỏ qua.',h:['if line.strip()']},
+   {t:'Chuyển dòng sạch cho <code>handle_request()</code> rồi quay lại chờ.',h:['handle_request(line.strip']},
+   {t:'Khi Agy đóng, stdin gặp [[eof|EOF]], vòng <code>for</code> kết thúc và tiến trình thoát.',h:['for line in sys.stdin']}
+  ],
+  out:'Không trả giá trị. Tiến trình sống đến khi Agy đóng (thoát với mã 0).'},
+ {id:'handle_request',step:4,sum:'Phân loại yêu cầu JSON-RPC và trả lời đúng khuôn',
+  need:'Agy cần biết: server là ai, có công cụ gì, và nhờ chạy công cụ đó với câu hỏi này.',
+  prob:'Mọi loại yêu cầu đi chung một ống stdin. Nếu không phân loại và không trả đúng khuôn [[jsonrpc|JSON-RPC]], Agy báo lỗi bắt tay và không hiện công cụ.',
+  does:'Giải mã dòng JSON, đọc ‹method›, rồi rẽ nhánh: ‹initialize› (chào hỏi), ‹tools/list› (khai báo công cụ), ‹tools/call› (chạy công cụ).',
+  code:String.raw`def handle_request(line, endpoint):
+    """Xử lý và điều phối các yêu cầu theo giao thức JSON-RPC 2.0."""
+    try:
+        req = json.loads(line)
+    except Exception:
+        return
+
+    req_id, method = req.get("id"), req.get("method")
+
+    # 1. Bắt tay khởi tạo giao thức MCP
+    if method == "initialize":
+        send_response({
+            "jsonrpc": "2.0",
+            "id": req_id,
+            "result": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {"tools": {}},
+                "serverInfo": {"name": "colab-ollama-mcp", "version": "1.0"}
+            }
+        })
+    # 2. Khai báo danh sách công cụ mà MCP Server hỗ trợ
+    elif method == "tools/list":
+        send_response({
+            "jsonrpc": "2.0",
+            "id": req_id,
+            "result": {
+                "tools": [{
+                    "name": "ollama_chat",
+                    "description": "Gửi yêu cầu sinh code tới Ollama trên Google Colab Pro GPU.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "prompt": {
+                                "type": "string",
+                                "description": "Câu hỏi lập trình hoặc đoạn mã cần tối ưu."
+                            }
+                        },
+                        "required": ["prompt"]
+                    }
+                }]
+            }
+        })
+    # 3. Thực thi gọi công cụ (Tool Execution)
+    elif method == "tools/call":
+        params = req.get("params", {})
+        if params.get("name") == "ollama_chat":
+            prompt = params.get("arguments", {}).get("prompt", "")
+            output, elapsed = call_ollama_api(endpoint, prompt)
+            send_response({
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {
+                    "content": [{
+                        "type": "text",
+                        "text": f"{output}\n\n[⏱️ Hoàn tất trong {elapsed:.2f}s qua Colab GPU]"
+                    }]
+                }
+            })`,
+  inp:'line = \'{"jsonrpc":"2.0","id":100,"method":"tools/call","params":{"name":"ollama_chat","arguments":{"prompt":"Viết hàm đảo ngược chuỗi trong Python"}}}\'\nendpoint = "https://quick-fox-99.trycloudflare.com"',
+  proc:[
+   {t:'<code>json.loads</code> biến chuỗi thành dict. Nếu không phải JSON hợp lệ, hàm im lặng thoát.',h:['json.loads(line)']},
+   {t:'Lấy <code>id = 100</code> và <code>method = "tools/call"</code>. Phải giữ <code>id</code> để trả lời cùng số hiệu.',h:['req_id, method']},
+   {t:'Khớp nhánh thứ ba: Agy đang nhờ chạy một công cụ.',h:['elif method == "tools/call"']},
+   {t:'Kiểm tra tên công cụ là <code>ollama_chat</code> rồi lấy <code>prompt</code> ra.',h:['params.get("name")','prompt = params']},
+   {t:'Giao câu hỏi cho <code>call_ollama_api()</code> và nhận lại (câu trả lời, số giây).',h:['call_ollama_api(endpoint']},
+   {t:'Ghép nhãn thời gian vào cuối câu trả lời, đóng gói với <code>id: 100</code> và gọi <code>send_response()</code>.',h:['Hoàn tất trong']}
+  ],
+  out:'Không trả giá trị. Một dòng JSON-RPC result (id 100) đã được ghi vào stdout. Hai nhánh đầu (bước 4 hành trình) hoạt động tương tự với dữ liệu khác.'},
+ {id:'call_ollama_api',step:6,sum:'Gửi câu hỏi tới GPU Colab và đo thời gian',
+  need:'Mượn GPU của Colab để viết code, biết nó mất bao nhiêu giây, và nếu mạng hỏng thì báo lỗi chứ không làm sập server.',
+  prob:'Ollama chỉ hiểu [[http|HTTP POST]] tới <code>/api/chat</code>. Mạng qua internet có thể đứt hoặc treo vô hạn.',
+  does:'Dựng URL và nội dung yêu cầu, gửi với [[timeout|timeout]] 120 giây, bấm giờ, lấy câu trả lời. Có <code>try/except</code> để mọi lỗi mạng thành một dòng thông báo.',
+  code:String.raw`def call_ollama_api(endpoint, prompt, model=DEFAULT_MODEL):
+    """Đóng gói câu hỏi thành định dạng HTTP POST chuẩn của Ollama API."""
+    url = f"{endpoint.rstrip('/')}/api/chat"
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": False
+    }
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST"
+    )
+
+    try:
+        start_time = time.time()
+        with urllib.request.urlopen(req, timeout=120) as response:
+            res_body = json.loads(response.read().decode("utf-8"))
+            elapsed = time.time() - start_time
+            content = res_body.get("message", {}).get("content", "")
+            return content, elapsed
+    except Exception as e:
+        return f"Lỗi kết nối Colab: {str(e)}", 0`,
+  inp:'endpoint = "https://quick-fox-99.trycloudflare.com"\nprompt   = "Viết hàm đảo ngược chuỗi trong Python"\nmodel    = "qwen2.5-coder:7b"   (DEFAULT_MODEL)',
+  proc:[
+   {t:'Ghép URL đích: <code>…trycloudflare.com/api/chat</code>.',h:['url = f']},
+   {t:'Dựng nội dung yêu cầu. <code>"stream": False</code> nghĩa là trả toàn bộ câu trả lời một lần.',h:['"messages"','"stream": False']},
+   {t:'Chuyển dict thành bytes JSON UTF-8 để gửi đi.',h:['data = json.dumps']},
+   {t:'Bấm giờ rồi gửi qua đường hầm, chờ tối đa 120 giây.',h:['start_time','urlopen']},
+   {t:'Nhận phản hồi và tính thời gian: ví dụ 101.50 − 100.00 = 1.50 giây.',h:['elapsed =']},
+   {t:'Lấy chữ trong <code>message.content</code>.',h:['content =']},
+   {t:'Nếu lỗi (đứt mạng, Colab tắt, quá 120 giây), trả chuỗi báo lỗi và số giây 0.',h:['except Exception','Lỗi kết nối']}
+  ],
+  out:'Thành công: ("def reverse_string(s):\\n    return s[::-1]", 1.50)   (kiểu tuple str, float)\nLỗi: ("Lỗi kết nối Colab: …", 0). Chuỗi lỗi này cũng hiện ra trong chat như một câu trả lời bình thường.'},
+ {id:'send_response',step:9,sum:'Đẩy kết quả về Agy ngay lập tức',
+  need:'Câu trả lời phải hiện lên khung chat ngay khi GPU xong, không có độ trễ vô lý.',
+  prob:'Hệ điều hành gom chữ ngắn vào [[buffer|bộ đệm]] và chỉ gửi khi đầy. Tin trả lời nhỏ có thể nằm im trong đó, Agy chờ mãi như bị treo.',
+  does:'Đổi dict thành đúng một dòng JSON kết thúc bằng xuống dòng, ghi ra stdout rồi gọi [[flush|flush()]] để đẩy đi ngay.',
+  code:String.raw`def send_response(res):
+    """Ghi dữ liệu JSON ra luồng xuất chuẩn (stdout) và ép đẩy dữ liệu tức thì."""
+    sys.stdout.write(json.dumps(res) + "\n")
+    sys.stdout.flush()`,
+  inp:'res = {"jsonrpc": "2.0", "id": 100, "result": {"content": [{"type": "text", "text": "def reverse_string(s): …"}]}}',
+  proc:[
+   {t:'<code>json.dumps</code> đổi dict thành một chuỗi JSON nằm trên một dòng.',h:['json.dumps(res)']},
+   {t:'Ghi chuỗi đó kèm <code>\\n</code>. Dấu xuống dòng là ranh giới giữa các tin trong ống.',h:['sys.stdout.write']},
+   {t:'<code>flush()</code> ép đẩy ngay sang Agy, không chờ bộ đệm đầy.',h:['flush']}
+  ],
+  out:'Không trả giá trị (<code>None</code>). Một dòng JSON-RPC vừa đi qua stdout và Agy hiển thị kết quả.'}
+];
+const CRIT=[
+ {k:'now',l:'Làm tiếp ngay'},{k:'free',l:'Không tốn thêm tiền'},{k:'nogpu',l:'Không cần GPU riêng'},{k:'ide',l:'Ở lại trong IDE'},{k:'q',l:'Model chất lượng cao'}
+];
+const OPTS=[
+ {n:'Chờ hạn mức làm mới',now:0,free:1,nogpu:1,ide:1,q:1},
+ {n:'Mua thêm hạn mức',now:1,free:0,nogpu:1,ide:1,q:1},
+ {n:'Chạy model trên máy mình',now:1,free:1,nogpu:0,ide:1,q:0},
+ {n:'Colab + MCP (hệ thống này)',now:1,free:1,nogpu:1,ide:1,q:0}
+];
+const RISKS=[
+ {k:1,t:'💡 Mẹo "vàng" cho macOS (Máy 18GB RAM): Mở Colab bằng Safari thay vì Chrome',b:'Khi treo máy lâu, Google Chrome ngốn tới 2.5 – 3.9 GB RAM do tích tụ log DOM, và tính năng Memory Saver của Chrome sẽ tự đóng băng rồi tự động tải lại (F5) tab Colab làm đứt kết nối.',f:'(1) Mở Colab bằng <code>Safari</code> trên macOS (nhân WebKit chỉ tốn ~350 MB RAM, tiết kiệm hơn 3 GB RAM cho máy). (2) Nếu dùng Chrome: vào <code>chrome://settings/performance</code> thêm <code>https://colab.research.google.com</code> vào danh sách Always keep active. (3) Bật cell Audio vô thanh (Silent Audio Loop) và xóa bớt log output (<code>Clear output</code>).'},
+ {k:1,t:'⭐ Model khuyên dùng trên Colab Pro: qwen2.5-coder:14b',b:'Bản 7B chỉ hợp viết hàm nhỏ. Với gói Colab Pro (GPU T4 16GB VRAM), bản <code>qwen2.5-coder:14b</code> chỉ chiếm ~9.5 GB VRAM (không tốn RAM máy Mac), tốn rất ít Compute Units nhưng chất lượng code vượt trội hơn Gemini Flash.',f:'Đặt <code>MODEL_NAME = "qwen2.5-coder:14b"</code> trên Colab (hoặc <code>qwen2.5-coder:32b</code> nếu chọn GPU A100 40GB VRAM).'},
+ {t:'Giả định cần kiểm chứng: Agy vẫn cần một ít token điều phối',b:'Chính model của Agy phải quyết định gọi công cụ và đọc lại kết quả. Nếu hạn mức cạn hoàn toàn và Agy không chạy được nữa, công cụ này không được gọi.',f:'Hãy gọi công cụ ngay khi Agy sắp hết hạn mức, hoặc dùng chung MCP server này với Claude Desktop / Cursor.'},
+ {t:'URL đổi mỗi lần bật lại phiên Colab mới',b:'Địa chỉ cũ hết hiệu lực khi tạo runtime mới, mọi lần gọi báo lỗi kết nối.',f:'Làm lại bước 2 và 3 trong phần “Khi Agy hết token” bên dưới.'},
+ {t:'Colab tự ngắt phiên khi không tương tác',b:'Colab tự ngắt khi rảnh rỗi khoảng 90 phút, và giới hạn tối đa 24 giờ mỗi phiên với gói Pro.',f:'Chạy cell Silent Audio Keep-Alive ở Bước 6 trên Colab và chủ động Disconnect runtime khi nghỉ để bảo toàn Compute Units.'},
+ {t:'URL công khai (Public Tunnel)',b:'Ai biết URL đều gọi được model của bạn trong lúc phiên đang mở và làm hao Compute Units.',f:'Không gửi mật khẩu, API key hay dữ liệu nhạy cảm trong prompt.'}
+];
+
+/* ===== helpers ===== */
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function rich(s){
+  return s.replace(/\[\[(\w+)\|(.+?)\]\]/g,(m,k,l)=>`<button type="button" class="term" data-term="${k}" aria-expanded="false" aria-controls="pop">${l}</button>`)
+          .replace(/‹(.+?)›/g,(m,c)=>`<code translate="no">${c}</code>`);
+}
+$('#tk').innerHTML=rich('[[token|token]]');
+const KW=new Set(['def','return','if','elif','else','for','in','try','except','with','as','import','and','or','not','from','True','False','None']);
+function hlLine(line){
+  let o='',i=0;
+  while(i<line.length){
+    const ch=line[i];
+    if(ch==='#'){o+=`<span class="c">${esc(line.slice(i))}</span>`;break;}
+    if(ch==='"'||ch==="'"){let j=i+1;while(j<line.length&&line[j]!==ch){if(line[j]==='\\')j++;j++;}o+=`<span class="s">${esc(line.slice(i,j+1))}</span>`;i=j+1;continue;}
+    if(/[A-Za-z_]/.test(ch)){let j=i;while(j<line.length&&/\w/.test(line[j]))j++;const w=line.slice(i,j);
+      if(w==='f'&&(line[j]==='"'||line[j]==="'")){o+='<span class="s">f</span>';i=j;continue;}
+      o+=KW.has(w)?`<span class="k">${w}</span>`:esc(w);i=j;continue;}
+    if(/\d/.test(ch)){let j=i;while(j<line.length&&/[\d.]/.test(line[j]))j++;o+=`<span class="m">${line.slice(i,j)}</span>`;i=j;continue;}
+    o+=esc(ch);i++;
+  }
+  return o;
+}
+
+/* ===== hero demo ===== */
+(function(){
+  const btn=$('#demo'),rep=$('#reply'),sys=$('#sysmsg');let on=false;
+  btn.addEventListener('click',()=>{
+    on=!on;
+    if(on){sys.hidden=true;rep.hidden=false;rep.classList.add('pre');requestAnimationFrame(()=>requestAnimationFrame(()=>rep.classList.remove('pre')));btn.textContent='Xem lại từ đầu';}
+    else{rep.hidden=true;sys.hidden=false;btn.textContent='Gọi model trên Colab';}
+  });
+})();
+
+/* ===== options ===== */
+(function(){
+  const crit=$('#crit'),tbl=$('#opt'),verdict=$('#verdict');
+  const sel=new Set(['now','free','ide']);
+  crit.innerHTML=CRIT.map(c=>`<label><input type="checkbox" value="${c.k}"${sel.has(c.k)?' checked':''}><span>${c.l}</span></label>`).join('');
+  function draw(){
+    const max=Math.max(...OPTS.map(o=>CRIT.filter(c=>sel.has(c.k)&&o[c.k]).length));
+    const rows=OPTS.map((o,i)=>({o,i,s:CRIT.filter(c=>sel.has(c.k)&&o[c.k]).length})).sort((a,b)=>b.s-a.s||a.i-b.i);
+    const head=`<thead><tr><th scope="col">Cách tiếp tục</th>${CRIT.map(c=>`<th scope="col" class="${sel.has(c.k)?'sel':''}">${c.l}</th>`).join('')}<th scope="col">Đáp ứng</th></tr></thead>`;
+    const body=`<tbody>${rows.map(r=>`<tr class="${sel.size&&r.s===max?'top':''}"><td>${r.o.n}</td>${CRIT.map(c=>`<td class="${sel.has(c.k)?'sel':''}">${r.o[c.k]?'<span class="y" aria-hidden="true">✓</span><span class="sr">Có</span>':'<span class="n" aria-hidden="true">✕</span><span class="sr">Không</span>'}</td>`).join('')}<td class="score">${r.s}/${sel.size}</td></tr>`).join('')}</tbody>`;
+    tbl.innerHTML=tbl.firstElementChild.outerHTML+head+body;
+    if(!sel.size){verdict.textContent='Hãy chọn ít nhất một điều bạn cần.';return;}
+    const top=rows.filter(r=>r.s===max).map(r=>r.o.n);
+    verdict.textContent=`Với lựa chọn của bạn, ${top.join(' và ')} đáp ứng nhiều nhất (${max}/${sel.size}).`;
+  }
+  crit.addEventListener('change',e=>{e.target.checked?sel.add(e.target.value):sel.delete(e.target.value);draw();});
+  draw();
+})();
+
+/* ===== stations ===== */
+$('#stations').innerHTML=STATIONS.map(s=>`<div style="--c:${s.c}"><h3>${s.n}</h3><small>${s.s}</small><p>${rich(s.d.replace(/<code>(.+?)<\/code>/g,'‹$1›'))}</p></div>`).join('');
+
+/* ===== popover ===== */
+const pop=$('#pop');let popFor=null,hideT=0;
+function closePop(){
+  if(!popFor)return;
+  popFor.setAttribute('aria-expanded','false');popFor.removeAttribute('aria-describedby');popFor=null;
+  pop.classList.remove('open');clearTimeout(hideT);hideT=setTimeout(()=>{pop.hidden=true},150);
+}
+function openPop(btn){
+  if(popFor===btn){closePop();return;}
+  closePop();clearTimeout(hideT);
+  const t=TERMS[btn.dataset.term];if(!t)return;
+  pop.innerHTML=`<b>${t.n}</b>${t.full?`<div class="pop-full">🔤 ${t.full}</div>`:''}<div class="pop-tech"><strong>Bản chất kỹ thuật:</strong> ${t.d}</div><div class="pop-ex"><strong>Ví dụ đời thực:</strong> ${t.e}</div>`;
+  pop.setAttribute('aria-label',t.n);
+  pop.hidden=false;pop.classList.remove('open');
+  const r=btn.getBoundingClientRect(),pw=pop.offsetWidth,ph=pop.offsetHeight;
+  const sx=window.scrollX,sy=window.scrollY,vw=document.documentElement.clientWidth;
+  let left=Math.min(Math.max(8,r.left+r.width/2-pw/2),vw-pw-8);
+  const below=r.bottom+ph+12<window.innerHeight||r.top<ph+12;
+  pop.style.left=(left+sx)+'px';pop.style.top=((below?r.bottom+8:r.top-ph-8)+sy)+'px';
+  pop.style.transformOrigin=`${r.left+r.width/2-left}px ${below?'0':'100%'}`;
+  btn.setAttribute('aria-expanded','true');btn.setAttribute('aria-describedby','pop');popFor=btn;
+  requestAnimationFrame(()=>pop.classList.add('open'));
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('.term');
+  if(b){openPop(b);return;}
+  if(!e.target.closest('#pop'))closePop();
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&popFor){const b=popFor;closePop();b.focus();}});
+
+/* ===== journey ===== */
+(function(){
+  const rail=$('#rail'),steps=$('#steps'),panel=$('#panel'),packet=$('#packet'),player=$('#player');
+  const play=$('#play'),prev=$('#prev'),next=$('#next');
+  rail.innerHTML=STATIONS.map(s=>`<div class="node" style="--c:${s.c}" data-id="${s.id}"><i></i><b>${s.n}</b><span>${s.s}</span></div>`).join('');
+  steps.innerHTML=STEPS.map((s,i)=>`<button type="button" data-i="${i}" aria-label="Bước ${i+1}: ${s.t}">${i+1}</button>`).join('');
+  let cur=0,timer=0;
+  function show(i,fromHash,instant){
+    cur=Math.max(0,Math.min(STEPS.length-1,i));const s=STEPS[cur];
+    packet.classList.toggle('instant',!!instant);
+    packet.style.transform=`translateX(${(s.pos/3*100).toFixed(2)}%)`;
+    $$('.node',rail).forEach((n,k)=>n.classList.toggle('on',s.at.includes(k)));
+    $$('button',steps).forEach((b,k)=>{b.toggleAttribute('aria-current',false);if(k===cur)b.setAttribute('aria-current','step');else b.removeAttribute('aria-current');b.classList.toggle('done',k<cur);});
+    $$('.seq-step').forEach(g=>{const on=g.dataset.step===String(cur+1);g.classList.toggle('active',on);g.setAttribute('aria-current',on?'true':'false');});
+    const st=STATIONS[s.at[s.at.length-1]];
+    const names=s.at.map(k=>STATIONS[k].n).join(' và ');
+    panel.style.setProperty('--c',st.c);
+    panel.innerHTML=`<h3>Bước ${cur+1}/${STEPS.length}: ${esc(s.t)}</h3><p class="where">Dữ liệu đang ở: ${names}</p>
+      <div class="blk" style="--c:${st.c}"><h4>Chuyện gì xảy ra</h4><p>${rich(s.w)}</p></div>
+      <div class="blk" style="--c:${st.c}"><h4>Vì sao cần</h4><p>${rich(s.y)}</p></div>
+      <div class="blk" style="--c:${st.c}"><h4>Dữ liệu lúc này</h4><pre class="payload" translate="no" tabindex="0" aria-label="Dữ liệu ở bước ${cur+1}">${s.p}</pre></div>
+      ${s.fn?`<p class="gofn"><button type="button" class="link" data-fn="${s.fn}">Xem hàm <code translate="no">${s.fn}()</code> chi tiết</button></p>`:'<p class="gofn fine">Bước này không chạy hàm nào trong server.py.</p>'}`;
+    prev.disabled=cur===0;next.disabled=cur===STEPS.length-1;
+    if(!fromHash)history.replaceState(null,'','#hanh-trinh-'+(cur+1));
+    if(cur===STEPS.length-1)stop();
+  }
+  function stop(){clearInterval(timer);timer=0;play.setAttribute('aria-pressed','false');play.textContent='Phát tự động';}
+  function start(){if(cur>=STEPS.length-1)show(0);play.setAttribute('aria-pressed','true');play.textContent='Tạm dừng';timer=setInterval(()=>show(cur+1),5200);}
+  window.goStep=i=>{stop();show(i);player.scrollIntoView({block:'start'});};
+  steps.addEventListener('click',e=>{const b=e.target.closest('button[data-i]');if(b){stop();show(+b.dataset.i);}});
+  prev.addEventListener('click',()=>{stop();show(cur-1);});
+  next.addEventListener('click',()=>{stop();show(cur+1);});
+  play.addEventListener('click',()=>timer?stop():start());
+  player.addEventListener('keydown',e=>{
+    if(e.target.matches('input,textarea'))return;
+    if(e.key==='ArrowRight'){e.preventDefault();stop();show(cur+1,false,true);}
+    else if(e.key==='ArrowLeft'){e.preventDefault();stop();show(cur-1,false,true);}
+  });
+  panel.addEventListener('click',e=>{const b=e.target.closest('[data-fn]');if(b)openFn(b.dataset.fn);});
+  const seqSvg=document.querySelector('.seq-svg');
+  if(seqSvg){
+    seqSvg.addEventListener('click',e=>{
+      const s=e.target.closest('.seq-step');
+      if(s&&s.dataset.step)window.goStep(+s.dataset.step-1);
+    });
+    seqSvg.addEventListener('keydown',e=>{
+      if(e.key==='Enter'||e.key===' '){
+        const s=e.target.closest('.seq-step');
+        if(s&&s.dataset.step){e.preventDefault();window.goStep(+s.dataset.step-1);}
+      }
+    });
+  }
+  const m=location.hash.match(/^#hanh-trinh-(\d)$/);
+  show(m?+m[1]-1:0,true);
+  if(m)requestAnimationFrame(()=>player.scrollIntoView());
+})();
+
+/* ===== functions ===== */
+function openFn(id){
+  const d=document.getElementById('fn-'+id);if(!d)return;
+  d.open=true;d.scrollIntoView({block:'start'});
+  const s=d.querySelector('summary');s.focus({preventScroll:true});
+}
+(function(){
+  const host=$('#funcs');
+  host.innerHTML=FUNCS.map((f,fi)=>{
+    const code=f.code.split('\n').map(l=>`<span class="ln">${hlLine(l)}</span>`).join('');
+    return `<details class="fn" id="fn-${f.id}"${fi===0?' open':''}>
+      <summary><b translate="no">${f.id}()</b><span>${f.sum}</span></summary>
+      <div class="fnb">
+        <div class="blk n"><h4>Nhu cầu (business)</h4><p>${rich(f.need)}</p></div>
+        <div class="blk p"><h4>Trở ngại (problem)</h4><p>${rich(f.prob)}</p></div>
+        <div class="blk"><h4>Hàm này làm gì</h4><p>${rich(f.does)}</p></div>
+        <pre class="code" translate="no" tabindex="0" aria-label="Mã nguồn hàm ${f.id}">${code}</pre>
+        <div class="io">
+          <div class="lbl">Ví dụ: dữ liệu vào (input)</div><pre>${esc(f.inp)}</pre>
+          <div class="lbl">Quá trình xử lý (process): bấm từng bước để tô sáng dòng code</div>
+          <ol class="proc">${f.proc.map((p,i)=>`<li><button type="button" data-f="${fi}" data-p="${i}" aria-pressed="${i===0}"><span>${rich(p.t)}</span></button></li>`).join('')}</ol>
+          <div class="lbl">Kết quả trả ra (output)</div><pre>${f.out.replace(/&/g,'&amp;').replace(/<(?!\/?code>)/g,'&lt;')}</pre>
+        </div>
+        <p class="back"><button type="button" class="link" data-step="${f.step}">Quay lại bước ${f.step} của hành trình</button></p>
+      </div></details>`;
+  }).join('');
+  function light(fi,pi){
+    const f=FUNCS[fi],det=document.getElementById('fn-'+f.id),lines=$$('.ln',det);
+    const hs=f.proc[pi].h;
+    lines.forEach(l=>l.classList.toggle('hl',hs.some(h=>l.textContent.includes(h))));
+    $$('.proc button',det).forEach((b,k)=>b.setAttribute('aria-pressed',k===pi));
+  }
+  FUNCS.forEach((f,i)=>light(i,0));
+  host.addEventListener('click',e=>{
+    const b=e.target.closest('.proc button');
+    if(b&&!e.target.closest('.term')){light(+b.dataset.f,+b.dataset.p);return;}
+    const g=e.target.closest('[data-step]');
+    if(g){window.goStep(+g.dataset.step-1);}
+  });
+})();
+
+/* ===== risks ===== */
+$('#risks').innerHTML=RISKS.map(r=>`<li class="${r.k?'key':''}"><b>${r.t}</b>${rich(r.b.replace(/<code>(.+?)<\/code>/g,'‹$1›'))}<div class="fix">Cách xử lý: ${rich(r.f.replace(/<code>(.+?)<\/code>/g,'‹$1›'))}</div></li>`).join('');
+
+/* ===== runbook ===== */
+(function(){
+  const RB=[
+   'Bật Colab: mở <code translate="no">notebooks/colab_ollama_mcp.ipynb</code> và chạy các cell để cài Ollama, tải model và mở đường hầm.',
+   'Sao chép dòng “Public Endpoint URL” in ra ở cuối cell.',
+   'Dán URL đó vào ô bên cạnh để tạo cấu hình, rồi đặt cấu hình vào phần MCP của Agy (mẫu có sẵn ở <code translate="no">configs/antigravity_mcp_config.json</code>).',
+   'Khởi động lại kết nối MCP hoặc cửa sổ Agy, rồi gọi công cụ <code translate="no">ollama_chat</code>.'
+  ];
+  const KEY='colab-mcp-runbook';let state=[0,0,0,0];
+  try{const s=JSON.parse(localStorage.getItem(KEY));if(Array.isArray(s)&&s.length===4)state=s;}catch(_){}
+  const ul=$('#checks');
+  ul.innerHTML=RB.map((t,i)=>`<li><label><input type="checkbox" data-i="${i}"${state[i]?' checked':''}><span>${t}</span></label></li>`).join('');
+  const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(state));}catch(_){}};
+  ul.addEventListener('change',e=>{state[+e.target.dataset.i]=e.target.checked?1:0;save();});
+  $('#reset').addEventListener('click',()=>{state=[0,0,0,0];$$('input',ul).forEach(c=>c.checked=false);save();});
+  const url=$('#url'),path=$('#path'),err=$('#url-err'),cfg=$('#cfg');
+  const OK=/^https:\/\/[a-z0-9-]+\.trycloudflare\.com\/?$/i;
+  function build(){
+    const v=url.value.trim();
+    const bad=v&&!OK.test(v);
+    url.setAttribute('aria-invalid',bad?'true':'false');
+    err.textContent=bad?'URL phải có dạng https://tên-ngẫu-nhiên.trycloudflare.com. Hãy sao chép lại từ Colab.':'';
+    const ep=(v&&!bad)?v.replace(/\/$/,''):'https://YOUR-TUNNEL-URL.trycloudflare.com';
+    cfg.textContent=JSON.stringify({mcpServers:{'colab-ollama':{command:'python3',args:[path.value.trim()||'/duong/dan/toi/server.py','--endpoint',ep]}}},null,2);
+    return !bad&&!!v;
+  }
+  url.addEventListener('input',build);path.addEventListener('input',build);build();
+  $('#copy').addEventListener('click',async()=>{
+    const ready=build();
+    try{await navigator.clipboard.writeText(cfg.textContent);}
+    catch(_){const r=document.createRange();r.selectNodeContents(cfg);const s=getSelection();s.removeAllRanges();s.addRange(r);}
+    $('#copied').textContent='';
+    requestAnimationFrame(()=>{$('#copied').textContent='Đã sao chép cấu hình.';});
+    $('#copyfine').textContent=ready?'':'Cấu hình đang dùng URL mẫu. Dán URL từ Colab vào trước khi dùng.';
+  });
+})();
+
+/* ===== toc active ===== */
+(function(){
+  const links=$$('.toc a'),map=new Map(links.map(a=>[a.getAttribute('href').slice(1),a]));
+  const io=new IntersectionObserver(es=>{
+    es.forEach(en=>{if(en.isIntersecting){links.forEach(a=>a.removeAttribute('aria-current'));const a=map.get(en.target.id);if(a)a.setAttribute('aria-current','true');}});
+  },{rootMargin:'-20% 0px -70% 0px'});
+  map.forEach((a,id)=>{const s=document.getElementById(id);if(s)io.observe(s);});
+})();
+</script>
+</body>
+</html>
