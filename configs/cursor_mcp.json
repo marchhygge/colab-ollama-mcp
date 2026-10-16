@@ -5,7 +5,9 @@
       "args": [
         "/Users/marchhygge/MarchHygge/project/colab-ollama-mcp/colab_ollama_mcp/server.py",
         "--endpoint",
-        "https://YOUR-TUNNEL-URL.trycloudflare.com"
+        "https://YOUR-TUNNEL-URL.trycloudflare.com",
+        "--model",
+        "qwen2.5-coder:14b"
       ]
     }
   }
