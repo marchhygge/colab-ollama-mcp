@@ -3,7 +3,7 @@
     "colab-ollama": {
       "command": "python3",
       "args": [
-        "/Users/marchhygge/MarchHygge/project/colab-ollama-mcp/colab_ollama_mcp/server.py",
+        "/path/to/colab-ollama-mcp/colab_ollama_mcp/server.py",
         "--endpoint",
         "https://YOUR-TUNNEL-URL.trycloudflare.com",
         "--model",

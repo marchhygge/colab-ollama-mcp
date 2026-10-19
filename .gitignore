@@ -1,5 +1,5 @@
-# Agent & IDE local configurations
-.agents/knowledge-base
+# Agent & IDE local configurations (internal/personal rules, KB, handoffs, reports)
+.agents/
 .agent/
 skills-lock.json
 

@@ -158,10 +158,8 @@ colab-ollama-mcp/
 ├── tests/
 │   └── test_server.py               # Pure-stdlib unittest suite for MCP server & JSON-RPC handlers
 ├── docs/
-│   ├── explainer.html               # Interactive self-contained HTML visual guide (Business -> Code)
-│   └── evaluation-report.html       # Interactive architectural audit, scorecard & P0-P3 remediation tracker
+│   └── explainer.html               # Interactive self-contained HTML visual guide (Business -> Code)
 ├── report.html                      # Interactive 5-tab setup wizard, CU ROI calculator & VRAM simulator
-├── .agents/                         # Agent skills, routing rules, state handoff & Obsidian KB symlink
 ├── pyproject.toml                   # Python packaging metadata
 └── README.md                        # Project documentation (this file)
 ```
@@ -199,7 +197,7 @@ Because Antigravity IDE includes the official **Google Colab** (`google.colab`) 
 2. Wait ~2 minutes while Colab installs Ollama, pulls **`qwen2.5-coder:14b` ⭐** into GPU VRAM, and launches the Cloudflare Quick Tunnel.
 3. At the bottom of **Step 5**, copy the generated `https://xxxx-xxxx.trycloudflare.com` URL (or the one-line terminal command):
    ```bash
-   python3 /Users/marchhygge/MarchHygge/project/colab-ollama-mcp/colab_ollama_mcp/server.py --set-endpoint https://xxxx-xxxx.trycloudflare.com
+   python3 colab_ollama_mcp/server.py --set-endpoint https://xxxx-xxxx.trycloudflare.com
    ```
 
 #### Step 3: Connect & Switch to Colab GPU (Choose Either Way!)
@@ -207,20 +205,20 @@ Because Antigravity IDE includes the official **Google Colab** (`google.colab`) 
 Once **Step 5** outputs your `https://xxxx-xxxx.trycloudflare.com` URL, you can connect using **whichever method you prefer**:
 
 - **🚀 Way 1 — Drop the Link Directly into Your Running `agy` CLI / IDE Chat:**
-  Simply copy and paste the raw `https://xxxx-xxxx.trycloudflare.com` URL straight into your active `agy` chat!
-  Thanks to the built-in `ollama_set_endpoint` MCP tool and `.agents/rules/colab-auto-switch.md`, the running `agy` agent will automatically:
+  Simply copy and paste the raw `https://xxxx-xxxx.trycloudflare.com` URL straight into your active `agy` / IDE chat!
+  Thanks to the built-in `ollama_set_endpoint` MCP tool, the running agent will automatically:
   1. Save the new URL into `~/.gemini/config/mcp_config.json` and `configs/antigravity_mcp_config.json`,
   2. Run a live health check (`ONLINE`, latency in `ms`, installed models), and
   3. Immediately switch to routing your coding tasks through `ollama_chat` (`qwen2.5-coder:14b` on Colab GPU)!
 
-- **⚡ Way 2 — Run the One-Line Command in Your Mac Terminal:**
-  Paste and run the command printed by Step 5 in any terminal tab:
+- **⚡ Way 2 — Run the One-Line Command in Your Terminal:**
+  Paste and run the command printed by Step 5 in your project root directory:
   ```bash
-  python3 /Users/marchhygge/MarchHygge/project/colab-ollama-mcp/colab_ollama_mcp/server.py --set-endpoint https://xxxx-xxxx.trycloudflare.com
+  python3 colab_ollama_mcp/server.py --set-endpoint https://xxxx-xxxx.trycloudflare.com
   ```
   Output:
   ```text
-  ✅ Updated MCP config: /Users/marchhygge/.gemini/config/mcp_config.json
+  ✅ Updated MCP config: ~/.gemini/config/mcp_config.json
   ✅ Updated MCP config: .../configs/antigravity_mcp_config.json
   🎉 ONLINE & SWITCHED! Connected to Colab GPU at https://xxxx-xxxx.trycloudflare.com (185 ms).
   Active Models: qwen2.5-coder:14b
@@ -264,7 +262,7 @@ Once connected, `colab-ollama` exposes 4 tools to your IDE / CLI assistant:
 
 ---
 
-## 🎓 7. Interactive Explainer & Knowledge Base
+## 🎓 7. Interactive Explainers & Simulators
 
 Want to understand **every single line of code** from business motivation down to OS pipes and JSON-RPC packets?
 
@@ -279,22 +277,11 @@ Want to understand **every single line of code** from business motivation down t
   - **Line-by-line interactive code debugger** for all 5 core functions in `server.py` (`get_endpoint`, `main`, `handle_request`, `call_ollama_api`, `send_response`).
   - Clickable inline technical glossary with full acronym expansions, OS/network mechanics, and real-world analogies.
 
-- **Interactive Evaluation & Remediation Dashboard (`docs/evaluation-report.html`):**
-  Open [`docs/evaluation-report.html`](docs/evaluation-report.html) to explore the full 4-scope architecture evaluation, master scorecard, interactive P0–P3 remediation filter, and live verification checklists:
-  ```bash
-  open docs/evaluation-report.html
-  ```
-
 - **Interactive Setup Wizard & GPU Simulator (`report.html`):**
   Open [`report.html`](report.html) for the 5-tab Colab Setup Wizard, Compute Unit (CU) ROI Calculator, and VRAM Quantization Simulator:
   ```bash
   open report.html
   ```
-
-- **Obsidian Knowledge Base (`.agents/knowledge-base/`):**
-  - `01-architecture/`: System architecture (`ARC-01`), tunnel security (`ARC-02`), zero-token fallback playbook (`ARC-03`), and Conductor-Worker state handoff (`ARC-04`).
-  - `02-colab-runtime/`: GPU setup (`COLAB-01`), anti-idle & macOS RAM optimization (`COLAB-02`), and Cloudflare Tunnel automation (`COLAB-03`).
-  - `03-mcp-server/`: MCP protocol design (`MCP-01`), IDE client configurations (`MCP-02`), and zero-dependency code walkthrough (`MCP-03`).
 
 ---
 
@@ -358,8 +345,7 @@ To eliminate the **15–40s model-swapping latency** and **KV Cache wipeout** on
 │  1. CONDUCTOR (Nhạc Trưởng — Planning & Problem Analysis)              │
 │  • Direct communication with developer in chat.                        │
 │  • Uses CoT reasoning (<think>) to diagnose bugs and design structure. │
-│  • Produces a compact STATE HANDOFF contract:                          │
-│    📂 .agents/kb/HANDOFF.md (Strictly ≤ 1,500 tokens)                  │
+│  • Produces a compact STATE HANDOFF contract (≤ 1,500 tokens).         │
 ├────────────────────────────────────────────────────────────────────────┤
 │  2. WORKER SPECIALIST (Chuyên Gia — Coding, Workflow, Diagram)         │
 │  • Reads ONLY the 1,500-token State Handoff contract.                  │
@@ -381,10 +367,7 @@ To eliminate the **15–40s model-swapping latency** and **KV Cache wipeout** on
 ### Memory & System Safeguards
 1. **Linux 16GB NVMe Swapfile:** Every notebook automatically runs `!test -f /swapfile || (fallocate -l 16G /swapfile ...)` to expand Colab virtual memory to **28.67 GB**, eliminating 100% of OOM Killer risks.
 2. **Flash Attention & 8-bit KV Cache:** Daemon runs with `OLLAMA_FLASH_ATTENTION=1` and `OLLAMA_KV_CACHE_TYPE=q8_0` to cut VRAM usage by 50%.
-3. **Shared Knowledge Base (`.agents/kb/`):**
-   - [`HANDOFF_TEMPLATE.md`](.agents/kb/HANDOFF_TEMPLATE.md): Standard contract format for task handoff.
-   - [`ARCHITECTURE.md`](.agents/kb/ARCHITECTURE.md): Active system specifications.
-   - [`TASKS.md`](.agents/kb/TASKS.md): Step-by-step task tracking.
-   - [`conductor-subagent-workflow.md`](.agents/rules/conductor-subagent-workflow.md): Agent execution rules.
+3. **Local Agent Customization (`.agents/` — Gitignored):** You can store your own local IDE rules, skills, and state handoff files (e.g., `.agents/kb/HANDOFF.md`) in `.agents/` without polluting version control.
+
 
 

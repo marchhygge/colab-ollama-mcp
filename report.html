@@ -764,7 +764,7 @@ else:
 
     function updateWizardSnippets() {
       const tunnel = document.getElementById('wizardTunnelInput').value.trim() || 'https://xxxx-your-tunnel.trycloudflare.com';
-      const serverPath = '/Users/marchhygge/MarchHygge/project/colab-ollama-mcp/colab_ollama_mcp/server.py';
+      const serverPath = '/path/to/colab-ollama-mcp/colab_ollama_mcp/server.py';
 
       const claudeJson = `{\n  "mcpServers": {\n    "colab-ollama": {\n      "command": "python3",\n      "args": [\n        "${serverPath}",\n        "--endpoint",\n        "${tunnel}"\n      ]\n    }\n  }\n}`;
       document.getElementById('codeClaude').innerText = claudeJson;
