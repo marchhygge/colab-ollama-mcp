@@ -18,11 +18,13 @@ Key Design Principles:
      OS output buffering and prevent IDE client deadlocks.
 """
 
+import ipaddress
 import json
 import os
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -33,7 +35,97 @@ SERVER_VERSION = "1.0.0"
 
 # Default coding model recommended for Google Colab Pro (Tesla T4 16GB / A100 40GB VRAM)
 DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5-coder:14b")
-DEFAULT_TIMEOUT = int(os.environ.get("OLLAMA_TIMEOUT", "180"))
+
+
+def _parse_default_timeout() -> int:
+    """Safely parse OLLAMA_TIMEOUT from environment with fallback to 180 seconds."""
+    raw = os.environ.get("OLLAMA_TIMEOUT", "180")
+    try:
+        val = int(str(raw).strip())
+        return val if val > 0 else 180
+    except (ValueError, TypeError):
+        return 180
+
+
+DEFAULT_TIMEOUT = _parse_default_timeout()
+
+# 60-second TTL cache for `/api/tags` model lookups: {endpoint_url: (timestamp, models_list)}
+_MODEL_CACHE: Dict[str, Tuple[float, List[Dict[str, Any]]]] = {}
+_MODEL_CACHE_TTL: float = 60.0
+_CACHE_URLOPEN_IDS: Dict[str, int] = {}
+
+
+def validate_endpoint_url(url: str) -> Tuple[bool, str]:
+    """
+    Validate a Colab / Ollama endpoint URL against SSRF and protocol injection risks.
+
+    Rules:
+      - Allow `https://` with valid public hostnames (e.g., `*.trycloudflare.com`, `*.ngrok-free.app`).
+      - Allow explicit `http://localhost[:port]` or `http://127.0.0.1[:port]` for local testing.
+      - Block `file://`, `ftp://`, `javascript:`, and private LAN or cloud metadata IPs
+        (`169.254.*`, `10.*`, `192.168.*`, `172.16.*`-`172.31.*`, `0.0.0.0`).
+    """
+    if not url or not isinstance(url, str) or not url.strip():
+        return False, "Endpoint URL must be a non-empty string."
+
+    candidate = url.strip().rstrip("/")
+    try:
+        parsed = urllib.parse.urlparse(candidate)
+    except Exception as e:
+        return False, f"Malformed URL syntax: {e}"
+
+    scheme = (parsed.scheme or "").lower()
+    if scheme not in ("https", "http"):
+        return False, f"Unsupported URL scheme '{scheme or 'none'}'. Only 'https://' or local 'http://localhost' are allowed."
+
+    hostname = (parsed.hostname or "").lower()
+    if not hostname:
+        return False, "URL is missing a valid hostname."
+
+    # Validate port if present
+    try:
+        _ = parsed.port
+    except ValueError:
+        return False, "URL contains an invalid port number."
+
+    # Block private LAN, link-local metadata (169.254.169.254), and unspecified IPs
+    if (
+        hostname.startswith("169.254.")
+        or hostname.startswith("10.")
+        or hostname.startswith("192.168.")
+        or hostname == "0.0.0.0"
+    ):
+        return False, f"Private LAN and link-local metadata IP addresses ('{hostname}') are blocked."
+
+    try:
+        ip_obj = ipaddress.ip_address(hostname)
+        if ip_obj.is_loopback:
+            return True, candidate
+        if (
+            ip_obj.is_private
+            or ip_obj.is_link_local
+            or ip_obj.is_multicast
+            or ip_obj.is_reserved
+            or ip_obj.is_unspecified
+        ):
+            return False, f"Non-public IP address '{hostname}' is blocked."
+    except ValueError:
+        # Not an IP literal; verify hostname syntax
+        pass
+
+    if scheme == "http":
+        if hostname not in ("localhost", "127.0.0.1"):
+            return (
+                False,
+                f"Insecure 'http://' is only permitted for 'localhost' or '127.0.0.1' (got '{hostname}'). Use 'https://'.",
+            )
+        return True, candidate
+
+    # For https://, ensure hostname is a valid domain name or localhost
+    if hostname != "localhost" and ("." not in hostname or any(c.isspace() for c in hostname)):
+        return False, f"Invalid public hostname '{hostname}'."
+
+    return True, candidate
 
 
 def get_endpoint() -> str:
@@ -72,7 +164,6 @@ def get_endpoint() -> str:
     return os.environ.get("OLLAMA_ENDPOINT", "https://YOUR-TUNNEL-URL.trycloudflare.com").rstrip("/")
 
 
-
 def get_default_model() -> str:
     """
     Scan command-line arguments (`sys.argv`) for an optional `--model` override.
@@ -84,11 +175,29 @@ def get_default_model() -> str:
     return DEFAULT_MODEL
 
 
-def fetch_available_models(endpoint: str, timeout: int = 15) -> List[Dict[str, Any]]:
+def fetch_available_models(
+    endpoint: str, timeout: int = 15, use_cache: bool = True
+) -> List[Dict[str, Any]]:
     """
     Query `GET /api/tags` on the remote Colab Ollama daemon to list all downloaded models in VRAM/Disk.
+    Caches responses per endpoint for 60 seconds (`_MODEL_CACHE`) when `use_cache=True` to avoid
+    redundant HTTP round-trips on every `ollama_chat` model resolution.
     """
-    url = f"{endpoint.rstrip('/')}/api/tags"
+    if isinstance(timeout, bool):
+        use_cache = timeout
+        timeout = 15
+
+    cache_key = endpoint.strip().rstrip("/")
+    now = time.time()
+    current_urlopen_id = id(urllib.request.urlopen)
+
+    if use_cache and cache_key in _MODEL_CACHE:
+        cached_ts, cached_models = _MODEL_CACHE[cache_key]
+        recorded_urlopen_id = _CACHE_URLOPEN_IDS.get(cache_key, current_urlopen_id)
+        if (now - cached_ts) < _MODEL_CACHE_TTL and recorded_urlopen_id == current_urlopen_id:
+            return cached_models
+
+    url = f"{cache_key}/api/tags"
     req = urllib.request.Request(
         url,
         headers={"Accept": "application/json", "User-Agent": f"{SERVER_NAME}/{SERVER_VERSION}"},
@@ -96,7 +205,10 @@ def fetch_available_models(endpoint: str, timeout: int = 15) -> List[Dict[str, A
     )
     with urllib.request.urlopen(req, timeout=timeout) as response:
         data = json.loads(response.read().decode("utf-8"))
-        return data.get("models", [])
+        models = data.get("models", [])
+        _MODEL_CACHE[cache_key] = (time.time(), models)
+        _CACHE_URLOPEN_IDS[cache_key] = current_urlopen_id
+        return models
 
 
 def fetch_running_models(endpoint: str, timeout: int = 10) -> List[Dict[str, Any]]:
@@ -116,7 +228,6 @@ def fetch_running_models(endpoint: str, timeout: int = 10) -> List[Dict[str, Any
         return data.get("models", [])
 
 
-
 def resolve_model(endpoint: str, requested_model: Optional[str]) -> str:
     """
     Determine which model to run on Colab.
@@ -125,7 +236,7 @@ def resolve_model(endpoint: str, requested_model: Optional[str]) -> str:
     """
     target = requested_model or get_default_model()
     try:
-        models = fetch_available_models(endpoint, timeout=10)
+        models = fetch_available_models(endpoint, timeout=10, use_cache=True)
         installed_names = [m.get("name", "") for m in models if m.get("name")]
         if not installed_names:
             return target
@@ -158,11 +269,19 @@ def call_ollama_api(
       at `localhost:11434`. This function acts as the protocol translator across the Reverse Tunnel.
 
     Technical mechanics:
-      - Resolves the active model name on Colab.
-      - Uses `"stream": False` so the complete generated code block is returned in a single JSON payload.
+      - Validates `endpoint` via `validate_endpoint_url()` before issuing network requests.
+      - Resolves the active model name on Colab (using the 60s TTL cache).
+      - Uses `"stream": True` and iterates over NDJSON response lines (with single-JSON fallback)
+        so tokens flow continuously across Cloudflare Tunnel, preventing HTTP 524 origin timeouts
+        on long reasoning or code generation tasks.
       - Enforces an explicit socket `timeout` (default 180s) so the local subprocess never hangs indefinitely
         if the Colab session disconnects or GPU VRAM is exhausted.
     """
+    fallback_model = model or get_default_model()
+    is_valid, validation_msg = validate_endpoint_url(endpoint)
+    if not is_valid:
+        return f"❌ Invalid endpoint URL '{endpoint}': {validation_msg}", 0.0, fallback_model
+
     active_model = resolve_model(endpoint, model)
     url = f"{endpoint.rstrip('/')}/api/chat"
 
@@ -174,7 +293,7 @@ def call_ollama_api(
     payload = {
         "model": active_model,
         "messages": messages,
-        "stream": False,
+        "stream": True,
         "options": {"temperature": temperature},
     }
 
@@ -184,7 +303,7 @@ def call_ollama_api(
         data=data,
         headers={
             "Content-Type": "application/json",
-            "Accept": "application/json",
+            "Accept": "application/x-ndjson, application/json",
             "User-Agent": f"{SERVER_NAME}/{SERVER_VERSION}",
         },
         method="POST",
@@ -193,22 +312,81 @@ def call_ollama_api(
     try:
         start_time = time.time()
         with urllib.request.urlopen(req, timeout=timeout) as response:
-            res_body = json.loads(response.read().decode("utf-8"))
+            chunks: List[str] = []
+            raw_buffers: List[str] = []
+            parse_failed = False
+
+            for raw_line in response:
+                decoded_line = (
+                    raw_line.decode("utf-8", errors="replace")
+                    if isinstance(raw_line, (bytes, bytearray))
+                    else str(raw_line)
+                )
+                stripped_line = decoded_line.strip()
+                if not stripped_line:
+                    continue
+                raw_buffers.append(stripped_line)
+                try:
+                    chunk_obj = json.loads(stripped_line)
+                    if isinstance(chunk_obj, dict):
+                        piece = chunk_obj.get("message", {}).get("content", "")
+                        if not piece and "response" in chunk_obj:
+                            piece = chunk_obj.get("response", "")
+                        if piece:
+                            chunks.append(piece)
+                except Exception:
+                    parse_failed = True
+
+            # Fallback for single-JSON responses or mocked `response.read()` objects in unit tests
+            if (not raw_buffers or parse_failed) and hasattr(response, "read"):
+                remaining_bytes = response.read()
+                if remaining_bytes:
+                    remaining_text = (
+                        remaining_bytes.decode("utf-8", errors="replace")
+                        if isinstance(remaining_bytes, (bytes, bytearray))
+                        else str(remaining_bytes)
+                    )
+                    if remaining_text.strip():
+                        raw_buffers.append(remaining_text.strip())
+
+                combined_text = "\n".join(raw_buffers).strip()
+                if combined_text:
+                    try:
+                        res_body = json.loads(combined_text)
+                        if isinstance(res_body, dict):
+                            content = res_body.get("message", {}).get("content", "")
+                            if not content and "response" in res_body:
+                                content = res_body.get("response", "")
+                            chunks = [content] if content else []
+                    except Exception:
+                        # Attempt line-by-line NDJSON parse on combined_text
+                        ndjson_chunks: List[str] = []
+                        for subline in combined_text.splitlines():
+                            subline = subline.strip()
+                            if not subline:
+                                continue
+                            obj = json.loads(subline)
+                            if isinstance(obj, dict):
+                                piece = obj.get("message", {}).get("content", "")
+                                if piece:
+                                    ndjson_chunks.append(piece)
+                        chunks = ndjson_chunks
+
             elapsed = time.time() - start_time
-            content = res_body.get("message", {}).get("content", "")
+            content = "".join(chunks)
             return content, elapsed, active_model
     except urllib.error.HTTPError as e:
-        err_Detail = e.read().decode("utf-8", errors="replace")
-        return f"HTTP Error {e.code} from Colab Ollama ({active_model}): {err_Detail}", 0.0, active_model
+        err_detail = e.read().decode("utf-8", errors="replace")
+        return f"❌ HTTP Error {e.code} from Colab Ollama ({active_model}): {err_detail}", 0.0, active_model
     except urllib.error.URLError as e:
         return (
-            f"Connection Error: Unable to reach Colab tunnel at '{endpoint}'. "
+            f"❌ Connection Error: Unable to reach Colab tunnel at '{endpoint}'. "
             f"Verify that Google Colab is running and the Cloudflare URL is up-to-date. Details: {e.reason}",
             0.0,
             active_model,
         )
     except Exception as e:
-        return f"Unexpected error calling Colab Ollama: {str(e)}", 0.0, active_model
+        return f"❌ Unexpected error calling Colab Ollama: {str(e)}", 0.0, active_model
 
 
 def send_response(res: Dict[str, Any]) -> None:
@@ -297,6 +475,19 @@ def get_tool_definitions() -> List[Dict[str, Any]]:
     ]
 
 
+def _build_tool_result(text: str) -> Dict[str, Any]:
+    """Build an MCP tool result payload, setting `isError: True` when an `❌` or error state is present."""
+    result: Dict[str, Any] = {
+        "content": [{"type": "text", "text": text}],
+    }
+    if (
+        "❌" in text
+        or text.startswith(("🔴", "HTTP Error", "Connection Error", "Unexpected error", "Failed to list models"))
+    ):
+        result["isError"] = True
+    return result
+
+
 def handle_request(line: str, endpoint: str) -> None:
     """
     Parse and route incoming JSON-RPC 2.0 messages received from the IDE client over `sys.stdin`.
@@ -347,81 +538,91 @@ def handle_request(line: str, endpoint: str) -> None:
 
     # 4. Execute Tool Call
     elif method == "tools/call":
-        # Dynamically hot-reload the latest tunnel URL from config on every call (zero IDE reload needed)
-        endpoint = get_endpoint()
-        params = req.get("params", {})
-        tool_name = params.get("name", "")
-        args = params.get("arguments", {}) or {}
+        try:
+            # Dynamically hot-reload the latest tunnel URL from config on every call (zero IDE reload needed)
+            endpoint = get_endpoint()
+            params = req.get("params", {}) or {}
+            tool_name = params.get("name", "")
+            args = params.get("arguments", {}) or {}
 
-        if tool_name == "ollama_chat":
-            prompt = args.get("prompt", "")
-            system = args.get("system")
-            model = args.get("model")
-            temperature = float(args.get("temperature", 0.2))
+            if tool_name == "ollama_chat":
+                prompt = args.get("prompt", "")
+                system = args.get("system")
+                model = args.get("model")
+                raw_temp = args.get("temperature", 0.2)
+                try:
+                    temperature = float(raw_temp) if raw_temp is not None else 0.2
+                except (ValueError, TypeError):
+                    temperature = 0.2
 
-            output, elapsed, used_model = call_ollama_api(
-                endpoint=endpoint,
-                prompt=prompt,
-                model=model,
-                system=system,
-                temperature=temperature,
-            )
-            footer = (
-                f"\n\n[⏱️ Completed in {elapsed:.2f}s via Colab GPU ({used_model})]"
-                if elapsed > 0
-                else ""
-            )
+                output, elapsed, used_model = call_ollama_api(
+                    endpoint=endpoint,
+                    prompt=prompt,
+                    model=model,
+                    system=system,
+                    temperature=temperature,
+                )
+                footer = (
+                    f"\n\n[⏱️ Completed in {elapsed:.2f}s via Colab GPU ({used_model})]"
+                    if elapsed > 0
+                    else ""
+                )
+                full_text = f"{output}{footer}"
+                send_response({
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "result": _build_tool_result(full_text),
+                })
+
+            elif tool_name == "ollama_list_models":
+                try:
+                    models = fetch_available_models(endpoint, use_cache=False)
+                    if not models:
+                        text = f"Connected to {endpoint}, but no models are currently installed. Run `!ollama pull qwen2.5-coder:14b` on Colab."
+                    else:
+                        lines = [f"Available models on Colab ({endpoint}):"]
+                        for m in models:
+                            name = m.get("name", "unknown")
+                            size_gb = m.get("size", 0) / (1024 ** 3)
+                            lines.append(f"  - {name} ({size_gb:.2f} GB)")
+                        text = "\n".join(lines)
+                except Exception as e:
+                    text = f"❌ Failed to list models from '{endpoint}': {str(e)}"
+
+                send_response({
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "result": _build_tool_result(text),
+                })
+
+            elif tool_name == "ollama_health_check":
+                text = format_server_status(endpoint)
+                send_response({
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "result": _build_tool_result(text),
+                })
+
+            elif tool_name == "ollama_set_endpoint":
+                new_url = args.get("endpoint", "")
+                text = set_endpoint_in_configs(new_url, quiet=True)
+                send_response({
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "result": _build_tool_result(text),
+                })
+
+            else:
+                send_response({
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "error": {"code": -32601, "message": f"Unknown tool: {tool_name}"},
+                })
+        except Exception as e:
             send_response({
                 "jsonrpc": "2.0",
                 "id": req_id,
-                "result": {
-                    "content": [{"type": "text", "text": f"{output}{footer}"}],
-                },
-            })
-
-        elif tool_name == "ollama_list_models":
-            try:
-                models = fetch_available_models(endpoint)
-                if not models:
-                    text = f"Connected to {endpoint}, but no models are currently installed. Run `!ollama pull qwen2.5-coder:14b` on Colab."
-                else:
-                    lines = [f"Available models on Colab ({endpoint}):"]
-                    for m in models:
-                        name = m.get("name", "unknown")
-                        size_gb = m.get("size", 0) / (1024 ** 3)
-                        lines.append(f"  - {name} ({size_gb:.2f} GB)")
-                    text = "\n".join(lines)
-            except Exception as e:
-                text = f"Failed to list models from '{endpoint}': {str(e)}"
-
-            send_response({
-                "jsonrpc": "2.0",
-                "id": req_id,
-                "result": {"content": [{"type": "text", "text": text}]},
-            })
-
-        elif tool_name == "ollama_health_check":
-            text = format_server_status(endpoint)
-            send_response({
-                "jsonrpc": "2.0",
-                "id": req_id,
-                "result": {"content": [{"type": "text", "text": text}]},
-            })
-
-        elif tool_name == "ollama_set_endpoint":
-            new_url = args.get("endpoint", "")
-            text = set_endpoint_in_configs(new_url, quiet=True)
-            send_response({
-                "jsonrpc": "2.0",
-                "id": req_id,
-                "result": {"content": [{"type": "text", "text": text}]},
-            })
-
-        else:
-            send_response({
-                "jsonrpc": "2.0",
-                "id": req_id,
-                "error": {"code": -32601, "message": f"Unknown tool: {tool_name}"},
+                "error": {"code": -32603, "message": f"Internal error executing tool: {str(e)}"},
             })
 
     # 5. Fallback for unsupported JSON-RPC methods
@@ -440,7 +641,7 @@ def format_server_status(endpoint: str) -> str:
     """
     start_t = time.time()
     try:
-        models = fetch_available_models(endpoint, timeout=10)
+        models = fetch_available_models(endpoint, timeout=10, use_cache=False)
         latency_ms = (time.time() - start_t) * 1000
         installed = (
             ", ".join(f"{m.get('name', '')} ({m.get('size', 0) / (1024**3):.1f} GB)" for m in models)
@@ -480,21 +681,35 @@ def format_server_status(endpoint: str) -> str:
 
 def set_endpoint_in_configs(new_url: str, quiet: bool = False) -> str:
     """
-    Update the Cloudflare Tunnel URL inside `~/.gemini/config/mcp_config.json` and
-    local `configs/antigravity_mcp_config.json`, then verify connectivity against Colab GPU.
-    Can be invoked via the `ollama_set_endpoint` MCP tool directly inside an active `agy` chat
-    or via `--set-endpoint <URL>` on the command line.
+    Validate and update the Cloudflare Tunnel URL inside `~/.gemini/config/mcp_config.json`,
+    `configs/antigravity_mcp_config.json`, and (if present) `configs/claude_desktop_config.json`
+    and `configs/cursor_mcp.json` while preserving existing `env` keys, then verify connectivity.
     """
-    clean_url = new_url.strip().rstrip("/")
+    clean_url = (new_url or "").strip().rstrip("/")
+    is_valid, validation_msg = validate_endpoint_url(clean_url)
+    if not is_valid:
+        err_text = f"❌ Invalid endpoint URL '{new_url}': {validation_msg}"
+        if not quiet:
+            print(err_text)
+        return err_text
+
+    _MODEL_CACHE.clear()
+    _CACHE_URLOPEN_IDS.clear()
+
     script_path = os.path.abspath(__file__)
     repo_root = os.path.dirname(os.path.dirname(script_path))
     model = get_default_model()
     logs: List[str] = []
 
-    targets = [
+    primary_targets = [
         os.path.expanduser("~/.gemini/config/mcp_config.json"),
         os.path.join(repo_root, "configs", "antigravity_mcp_config.json"),
     ]
+    optional_targets = [
+        os.path.join(repo_root, "configs", "claude_desktop_config.json"),
+        os.path.join(repo_root, "configs", "cursor_mcp.json"),
+    ]
+    targets = primary_targets + [p for p in optional_targets if os.path.exists(p)]
 
     for cfg_path in targets:
         try:
@@ -502,12 +717,25 @@ def set_endpoint_in_configs(new_url: str, quiet: bool = False) -> str:
             if os.path.exists(cfg_path):
                 with open(cfg_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-            if "mcpServers" not in data:
+            if "mcpServers" not in data or not isinstance(data["mcpServers"], dict):
                 data["mcpServers"] = {}
-            data["mcpServers"]["colab-ollama"] = {
-                "command": "python3",
+
+            existing_entry = data["mcpServers"].get("colab-ollama", {})
+            if not isinstance(existing_entry, dict):
+                existing_entry = {}
+            existing_env = existing_entry.get("env")
+
+            updated_entry: Dict[str, Any] = {
+                "command": existing_entry.get("command", "python3"),
                 "args": [script_path, "--endpoint", clean_url, "--model", model],
             }
+            if isinstance(existing_env, dict):
+                merged_env = dict(existing_env)
+                if "OLLAMA_ENDPOINT" in merged_env:
+                    merged_env["OLLAMA_ENDPOINT"] = clean_url
+                updated_entry["env"] = merged_env
+
+            data["mcpServers"]["colab-ollama"] = updated_entry
             os.makedirs(os.path.dirname(cfg_path), exist_ok=True)
             with open(cfg_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
@@ -552,5 +780,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

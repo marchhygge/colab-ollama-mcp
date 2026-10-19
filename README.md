@@ -110,17 +110,17 @@ sequenceDiagram
     IDE->>Srv: stdin: {"jsonrpc":"2.0", "id":1, "method":"initialize"}
     Srv-->>IDE: stdout + flush(): capabilities & serverInfo
     IDE->>Srv: stdin: {"jsonrpc":"2.0", "id":2, "method":"tools/list"}
-    Srv-->>IDE: stdout + flush(): [ollama_chat, ollama_list_models, ollama_health_check]
+    Srv-->>IDE: stdout + flush(): [ollama_chat, ollama_list_models, ollama_health_check, ollama_set_endpoint]
 
     Note over User,GPU: Phase 2: Coding Prompt & Remote GPU Inference
     User->>IDE: Ask coding question / request refactor
     IDE->>Srv: stdin: {"jsonrpc":"2.0", "id":100, "method":"tools/call", "params":{"name":"ollama_chat", ...}}
     Note right of Srv: handle_request() routes to call_ollama_api()
-    Srv->>CF: HTTPS POST /api/chat (stream: false, timeout: 180s)
+    Srv->>CF: HTTPS POST /api/chat (stream: true NDJSON, timeout: 180s)
     CF->>GPU: Forward through Reverse Tunnel to localhost:11434
-    Note left of GPU: Ollama loads prompt into GPU VRAM<br/>& computes response tokens
-    GPU-->>CF: HTTP 200 JSON (generated code)
-    CF-->>Srv: Return JSON payload
+    Note left of GPU: Ollama loads prompt into GPU VRAM<br/>& streams response tokens
+    GPU-->>CF: HTTP 200 NDJSON stream (generated code)
+    CF-->>Srv: Stream NDJSON chunks (prevents HTTP 524)
     Note right of Srv: Measure elapsed time & call send_response() + sys.stdout.flush()
     Srv-->>IDE: stdout: {"jsonrpc":"2.0", "id":100, "result":{"content":[...]}}
     IDE-->>User: Render complete code + [⏱️ Completed in 1.50s via Colab GPU]
@@ -145,17 +145,23 @@ colab-ollama-mcp/
 ├── colab_ollama_mcp/
 │   ├── __init__.py                  # Package metadata and version
 │   └── server.py                    # Zero-dependency MCP server (pure Python stdlib)
-│                                    # Includes '--set-endpoint <URL>' auto-config CLI helper
+│                                    # Includes '--set-endpoint <URL>' & '--status' CLI helpers
 ├── notebooks/
-│   └── colab_ollama_mcp.ipynb       # 6-step Colab GPU runner notebook (T4/A100 ready, English comments)
+│   ├── colab_ollama_mcp.ipynb       # Option 2 (Performance): T4/A100 runner (deepseek-r1:14b + qwen2.5-coder:14b)
+│   ├── colab_ollama_t4_saver.ipynb  # Option 1 (Saver): T4 lightweight runner (8B/7B multi-model)
+│   └── colab_ollama_a100_max.ipynb  # Combo 2 (A100 Max): A100 40GB flagship runner (32B + 14B + vision)
 ├── configs/
 │   ├── antigravity_mcp_config.json  # Ready-to-use MCP config template for Antigravity IDE
 │   ├── claude_desktop_config.json   # Ready-to-use MCP config template for Claude Desktop
 │   ├── cursor_mcp.json              # Ready-to-use MCP config template for Cursor IDE
-│   └── .env.example                 # Environment variable reference
+│   └── .env.example                 # Environment variable reference (OLLAMA_ENDPOINT, OLLAMA_MODEL, OLLAMA_TIMEOUT)
+├── tests/
+│   └── test_server.py               # Pure-stdlib unittest suite for MCP server & JSON-RPC handlers
 ├── docs/
-│   └── explainer.html               # Interactive self-contained HTML visual guide (Business -> Code)
-├── .agents/                         # Agent skills, routing rules, and Obsidian Knowledge Base symlink
+│   ├── explainer.html               # Interactive self-contained HTML visual guide (Business -> Code)
+│   └── evaluation-report.html       # Interactive architectural audit, scorecard & P0-P3 remediation tracker
+├── report.html                      # Interactive 5-tab setup wizard, CU ROI calculator & VRAM simulator
+├── .agents/                         # Agent skills, routing rules, state handoff & Obsidian KB symlink
 ├── pyproject.toml                   # Python packaging metadata
 └── README.md                        # Project documentation (this file)
 ```
@@ -273,8 +279,20 @@ Want to understand **every single line of code** from business motivation down t
   - **Line-by-line interactive code debugger** for all 5 core functions in `server.py` (`get_endpoint`, `main`, `handle_request`, `call_ollama_api`, `send_response`).
   - Clickable inline technical glossary with full acronym expansions, OS/network mechanics, and real-world analogies.
 
+- **Interactive Evaluation & Remediation Dashboard (`docs/evaluation-report.html`):**
+  Open [`docs/evaluation-report.html`](docs/evaluation-report.html) to explore the full 4-scope architecture evaluation, master scorecard, interactive P0–P3 remediation filter, and live verification checklists:
+  ```bash
+  open docs/evaluation-report.html
+  ```
+
+- **Interactive Setup Wizard & GPU Simulator (`report.html`):**
+  Open [`report.html`](report.html) for the 5-tab Colab Setup Wizard, Compute Unit (CU) ROI Calculator, and VRAM Quantization Simulator:
+  ```bash
+  open report.html
+  ```
+
 - **Obsidian Knowledge Base (`.agents/knowledge-base/`):**
-  - `01-architecture/`: System architecture (`ARC-01`), tunnel security (`ARC-02`), and zero-token fallback playbook (`ARC-03`).
+  - `01-architecture/`: System architecture (`ARC-01`), tunnel security (`ARC-02`), zero-token fallback playbook (`ARC-03`), and Conductor-Worker state handoff (`ARC-04`).
   - `02-colab-runtime/`: GPU setup (`COLAB-01`), anti-idle & macOS RAM optimization (`COLAB-02`), and Cloudflare Tunnel automation (`COLAB-03`).
   - `03-mcp-server/`: MCP protocol design (`MCP-01`), IDE client configurations (`MCP-02`), and zero-dependency code walkthrough (`MCP-03`).
 
@@ -337,7 +355,7 @@ To eliminate the **15–40s model-swapping latency** and **KV Cache wipeout** on
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
-│  1. CONDUCUTOR (Nhạc Trưởng — Planning & Problem Analysis)             │
+│  1. CONDUCTOR (Nhạc Trưởng — Planning & Problem Analysis)              │
 │  • Direct communication with developer in chat.                        │
 │  • Uses CoT reasoning (<think>) to diagnose bugs and design structure. │
 │  • Produces a compact STATE HANDOFF contract:                          │

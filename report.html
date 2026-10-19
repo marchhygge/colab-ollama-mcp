@@ -703,7 +703,10 @@
 # 🚀 COLAB OLLAMA ALL-IN-ONE RUNNER (Tối ưu cho ${selectedGpu} GPU)
 # Model mục tiêu: ${selectedModel}
 # ===============================================================
-import subprocess, os, time, re
+import subprocess, os, time, re, threading
+
+# 0. Tạo 16GB NVMe Swapfile (Chống tràn 12.7GB System RAM trên Colab)
+!test -f /swapfile || (fallocate -l 16G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile)
 
 # 1. Cài đặt Ollama & Cloudflared
 print("📦 [1/4] Đang cài đặt Ollama và Cloudflared tunnel...")
@@ -711,25 +714,32 @@ print("📦 [1/4] Đang cài đặt Ollama và Cloudflared tunnel...")
 !wget -q -nc https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
 !dpkg -i cloudflared-linux-amd64.deb > /dev/null 2>&1
 
-# 2. Khởi động Ollama daemon ngầm trên cổng 11434
+# 2. Khởi động Ollama daemon ngầm (Flash Attention + 8-bit KV Cache)
 print("⚙️ [2/4] Khởi động Ollama daemon...")
-os.environ["OLLAMA_HOST"] = "0.0.0.0:11434"
-subprocess.Popen(["ollama", "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+env = os.environ.copy()
+env.update({
+    "OLLAMA_HOST": "0.0.0.0:11434",
+    "OLLAMA_KEEP_ALIVE": "24h",
+    "OLLAMA_FLASH_ATTENTION": "1",
+    "OLLAMA_KV_CACHE_TYPE": "q8_0",
+})
+subprocess.Popen(["ollama", "serve"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 time.sleep(3)
 
 # 3. Kéo model coding mục tiêu
 print(f"⏳ [3/4] Đang kéo model ${selectedModel} về GPU Colab...")
 !ollama pull ${selectedModel}
 
-# 4. Mở đường hầm Cloudflare Quick Tunnel
+# 4. Mở đường hầm Cloudflare Quick Tunnel (Kèm luồng xả Pipe chống treo 64KB)
 print("🌐 [4/4] Đang tạo đường hầm kết nối ra ngoài...")
+!pkill -f cloudflared || true
 tunnel_proc = subprocess.Popen(
     ["cloudflared", "tunnel", "--url", "http://localhost:11434"],
     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
 )
 
 tunnel_url = None
-for _ in range(50):
+for _ in range(60):
     line = tunnel_proc.stdout.readline()
     m = re.search(r'https://[a-zA-Z0-9-]+\\.trycloudflare\\.com', line)
     if m:
@@ -737,12 +747,14 @@ for _ in range(50):
         break
     time.sleep(0.2)
 
+threading.Thread(target=lambda: [None for _ in iter(tunnel_proc.stdout.readline, "")], daemon=True).start()
+
 print("\\n" + "="*65)
 if tunnel_url:
     print("🎉 THÀNH CÔNG! ĐƯỜNG HẦM OLLAMA ĐÃ HOẠT ĐỘNG:")
     print(f"🔗 TUNNEL URL: {tunnel_url}")
     print("="*65)
-    print("👉 Hãy dán link trên vào mục cấu hình IDE ở máy local để bắt đầu code!")
+    print("👉 Hãy dán link trên vào chat IDE (ollama_set_endpoint) hoặc chạy --set-endpoint ở máy local!")
 else:
     print("❌ Chưa bắt được link tunnel. Vui lòng kiểm tra lại log.")`;
 
