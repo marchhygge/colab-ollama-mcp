@@ -1,14 +1,20 @@
 {
+  "_comment": "Cursor IDE MCP Configuration — copy to ~/.cursor/mcp.json (global) or .cursor/mcp.json (workspace)",
   "mcpServers": {
     "colab-ollama": {
       "command": "python3",
       "args": [
-        "/Users/marchhygge/MarchHygge/project/colab-ollama-mcp/colab_ollama_mcp/server.py",
+        "/path/to/colab-ollama-mcp/colab_ollama_mcp/server.py",
         "--endpoint",
         "https://YOUR-TUNNEL-URL.trycloudflare.com",
         "--model",
         "qwen2.5-coder:14b"
-      ]
+      ],
+      "env": {
+        "OLLAMA_ENDPOINT": "https://YOUR-TUNNEL-URL.trycloudflare.com",
+        "OLLAMA_MODEL": "qwen2.5-coder:14b",
+        "OLLAMA_TIMEOUT": "180"
+      }
     }
   }
 }

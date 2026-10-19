@@ -520,7 +520,7 @@ tr.top td:first-child{box-shadow:inset 4px 0 0 var(--srv);font-weight:600}
           </div>
           <div class="field">
             <label for="path">Đường dẫn server.py</label>
-            <input id="path" name="path" type="text" autocomplete="off" spellcheck="false" value="/Users/marchhygge/MarchHygge/project/colab-ollama-mcp/colab_ollama_mcp/server.py">
+            <input id="path" name="path" type="text" autocomplete="off" spellcheck="false" value="/path/to/colab-ollama-mcp/colab_ollama_mcp/server.py">
           </div>
           <pre class="cfg" id="cfg" translate="no" tabindex="0" aria-label="Cấu hình MCP được tạo"></pre>
           <button class="btn" id="copy" type="button">Sao chép cấu hình</button>
@@ -837,7 +837,7 @@ const OPTS=[
 ];
 const RISKS=[
  {k:1,t:'💡 Mẹo "vàng" cho macOS (Máy 18GB RAM): Mở Colab bằng Safari thay vì Chrome',b:'Khi treo máy lâu, Google Chrome ngốn tới 2.5 – 3.9 GB RAM do tích tụ log DOM, và tính năng Memory Saver của Chrome sẽ tự đóng băng rồi tự động tải lại (F5) tab Colab làm đứt kết nối.',f:'(1) Mở Colab bằng <code>Safari</code> trên macOS (nhân WebKit chỉ tốn ~350 MB RAM, tiết kiệm hơn 3 GB RAM cho máy). (2) Nếu dùng Chrome: vào <code>chrome://settings/performance</code> thêm <code>https://colab.research.google.com</code> vào danh sách Always keep active. (3) Bật cell Audio vô thanh (Silent Audio Loop) và xóa bớt log output (<code>Clear output</code>).'},
- {k:1,t:'⭐ Model khuyên dùng trên Colab Pro: qwen2.5-coder:14b',b:'Bản 7B chỉ hợp viết hàm nhỏ. Với gói Colab Pro (GPU T4 16GB VRAM), bản <code>qwen2.5-coder:14b</code> chỉ chiếm ~9.5 GB VRAM (không tốn RAM máy Mac), tốn rất ít Compute Units nhưng chất lượng code vượt trội hơn Gemini Flash.',f:'Đặt <code>MODEL_NAME = "qwen2.5-coder:14b"</code> trên Colab (hoặc <code>qwen2.5-coder:32b</code> nếu chọn GPU A100 40GB VRAM).'},
+ {k:1,t:'⭐ Hồ sơ Model khuyên dùng (Plan 1 & Plan 2 Dual-Resident)',b:'Hệ thống chia 2 chế độ: <b>Plan 1 Performance</b> (<code>deepseek-r1:14b</code> + <code>qwen2.5-coder:14b/32b</code> hoặc <code>qwen3-coder:30b</code>) và <b>Plan 2 Fast Dual-Resident</b> (<code>deepseek-r1:8b</code> + <code>qwen2.5-coder:7b</code> hoặc <code>qwen3-coder:8b</code> với <code>OLLAMA_MAX_LOADED_MODELS=2</code> giúp nạp song song 2 model trên T4 16GB VRAM, 0.0s switch).',f:'Mở notebook tương ứng trong <code>notebooks/</code>: <code>colab_ollama_plan1_performance_t4.ipynb</code>, <code>colab_ollama_plan1_performance_a100.ipynb</code>, <code>colab_ollama_plan2_fast_t4.ipynb</code>, hoặc <code>colab_ollama_tutorial.ipynb</code>.'},
  {t:'Giả định cần kiểm chứng: Agy vẫn cần một ít token điều phối',b:'Chính model của Agy phải quyết định gọi công cụ và đọc lại kết quả. Nếu hạn mức cạn hoàn toàn và Agy không chạy được nữa, công cụ này không được gọi.',f:'Hãy gọi công cụ ngay khi Agy sắp hết hạn mức, hoặc dùng chung MCP server này với Claude Desktop / Cursor.'},
  {t:'URL đổi mỗi lần bật lại phiên Colab mới',b:'Địa chỉ cũ hết hiệu lực khi tạo runtime mới, mọi lần gọi báo lỗi kết nối.',f:'Làm lại bước 2 và 3 trong phần “Khi Agy hết token” bên dưới.'},
  {t:'Colab tự ngắt phiên khi không tương tác',b:'Colab tự ngắt khi rảnh rỗi khoảng 90 phút, và giới hạn tối đa 24 giờ mỗi phiên với gói Pro.',f:'Chạy cell Silent Audio Keep-Alive ở Bước 6 trên Colab và chủ động Disconnect runtime khi nghỉ để bảo toàn Compute Units.'},
@@ -1034,7 +1034,7 @@ $('#risks').innerHTML=RISKS.map(r=>`<li class="${r.k?'key':''}"><b>${r.t}</b>${r
 /* ===== runbook ===== */
 (function(){
   const RB=[
-   'Bật Colab: mở <code translate="no">notebooks/colab_ollama_mcp.ipynb</code> và chạy các cell để cài Ollama, tải model và mở đường hầm.',
+   'Bật Colab: mở 1 trong 4 notebook trong <code translate="no">notebooks/</code> (<code translate="no">colab_ollama_plan1_performance_t4.ipynb</code>, <code translate="no">colab_ollama_plan1_performance_a100.ipynb</code>, <code translate="no">colab_ollama_plan2_fast_t4.ipynb</code>, hoặc <code translate="no">colab_ollama_tutorial.ipynb</code>) và chạy các cell để cài Ollama, tải model và mở đường hầm.',
    'Sao chép dòng “Public Endpoint URL” in ra ở cuối cell.',
    'Dán URL đó vào ô bên cạnh để tạo cấu hình, rồi đặt cấu hình vào phần MCP của Agy (mẫu có sẵn ở <code translate="no">configs/antigravity_mcp_config.json</code>).',
    'Khởi động lại kết nối MCP hoặc cửa sổ Agy, rồi gọi công cụ <code translate="no">ollama_chat</code>.'

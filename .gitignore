@@ -1,5 +1,5 @@
-# Agent & IDE local configurations
-.agents/knowledge-base
+# Agent & IDE local configurations (internal/personal rules, KB, handoffs, reports)
+.agents/
 .agent/
 skills-lock.json
 
@@ -13,6 +13,17 @@ ENV/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+
+# Coverage, Test & Build Artifacts
+.ipynb_checkpoints/
+*.cover
+.coverage
+.coverage.*
+htmlcov/
+build/
+dist/
+*.egg-info/
+*.log
 
 # Environment & Secrets
 .env

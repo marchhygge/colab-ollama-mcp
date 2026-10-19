@@ -110,17 +110,17 @@ sequenceDiagram
     IDE->>Srv: stdin: {"jsonrpc":"2.0", "id":1, "method":"initialize"}
     Srv-->>IDE: stdout + flush(): capabilities & serverInfo
     IDE->>Srv: stdin: {"jsonrpc":"2.0", "id":2, "method":"tools/list"}
-    Srv-->>IDE: stdout + flush(): [ollama_chat, ollama_list_models, ollama_health_check]
+    Srv-->>IDE: stdout + flush(): [ollama_chat, ollama_list_models, ollama_health_check, ollama_set_endpoint]
 
     Note over User,GPU: Phase 2: Coding Prompt & Remote GPU Inference
     User->>IDE: Ask coding question / request refactor
     IDE->>Srv: stdin: {"jsonrpc":"2.0", "id":100, "method":"tools/call", "params":{"name":"ollama_chat", ...}}
     Note right of Srv: handle_request() routes to call_ollama_api()
-    Srv->>CF: HTTPS POST /api/chat (stream: false, timeout: 180s)
+    Srv->>CF: HTTPS POST /api/chat (stream: true NDJSON, timeout: 180s)
     CF->>GPU: Forward through Reverse Tunnel to localhost:11434
-    Note left of GPU: Ollama loads prompt into GPU VRAM<br/>& computes response tokens
-    GPU-->>CF: HTTP 200 JSON (generated code)
-    CF-->>Srv: Return JSON payload
+    Note left of GPU: Ollama loads prompt into GPU VRAM<br/>& streams response tokens
+    GPU-->>CF: HTTP 200 NDJSON stream (generated code)
+    CF-->>Srv: Stream NDJSON chunks (prevents HTTP 524)
     Note right of Srv: Measure elapsed time & call send_response() + sys.stdout.flush()
     Srv-->>IDE: stdout: {"jsonrpc":"2.0", "id":100, "result":{"content":[...]}}
     IDE-->>User: Render complete code + [⏱️ Completed in 1.50s via Colab GPU]
@@ -145,17 +145,21 @@ colab-ollama-mcp/
 ├── colab_ollama_mcp/
 │   ├── __init__.py                  # Package metadata and version
 │   └── server.py                    # Zero-dependency MCP server (pure Python stdlib)
-│                                    # Includes '--set-endpoint <URL>' auto-config CLI helper
+│                                    # Includes '--set-endpoint <URL>' & '--status' CLI helpers
 ├── notebooks/
-│   └── colab_ollama_mcp.ipynb       # 6-step Colab GPU runner notebook (T4/A100 ready, English comments)
+│   ├── colab_ollama_tutorial.ipynb               # Workbook 0 (Tutorial): Starter single-model runner (qwen2.5-coder:14b)
+│   ├── colab_ollama_plan1_performance_t4.ipynb   # Plan 1 (Performance — T4 16GB): deepseek-r1:14b + qwen2.5-coder:14b (~1.53 CU/h)
+│   ├── colab_ollama_plan1_performance_a100.ipynb # Plan 1 (Performance — A100 40GB Dual-Resident): deepseek-r1:14b + qwen2.5-coder:32b/30b (~5.38 CU/h)
+│   └── colab_ollama_plan2_fast_t4.ipynb          # Plan 2 (Fast — T4 16GB Dual-Resident): deepseek-r1:8b + qwen2.5-coder:7b/8b (0.0s switch)
 ├── configs/
 │   ├── antigravity_mcp_config.json  # Ready-to-use MCP config template for Antigravity IDE
 │   ├── claude_desktop_config.json   # Ready-to-use MCP config template for Claude Desktop
 │   ├── cursor_mcp.json              # Ready-to-use MCP config template for Cursor IDE
-│   └── .env.example                 # Environment variable reference
+│   └── .env.example                 # Environment variable reference (OLLAMA_ENDPOINT, OLLAMA_MODEL, OLLAMA_TIMEOUT)
+├── tests/
+│   └── test_server.py               # Pure-stdlib unittest suite for MCP server & JSON-RPC handlers
 ├── docs/
 │   └── explainer.html               # Interactive self-contained HTML visual guide (Business -> Code)
-├── .agents/                         # Agent skills, routing rules, and Obsidian Knowledge Base symlink
 ├── pyproject.toml                   # Python packaging metadata
 └── README.md                        # Project documentation (this file)
 ```
@@ -170,16 +174,17 @@ You have **two ways** to run the Google Colab GPU backend. **Option A** is stron
 
 ### Option A (⭐ Recommended — 0 MB Browser RAM): Run Directly Inside Antigravity IDE
 
-Because Antigravity IDE includes the official **Google Colab** (`google.colab`) and **Jupyter** (`ms-toolsai.jupyter`) extensions, you can execute either notebook profile directly inside your IDE without opening Chrome or Safari:
+Because Antigravity IDE includes the official **Google Colab** (`google.colab`) and **Jupyter** (`ms-toolsai.jupyter`) extensions, you can execute any of the 4 notebook profiles directly inside your IDE without opening Chrome or Safari:
 
-| Profile | Target Notebook | Hardware | Core Models & Sweet Spot |
+| Plan / Profile | Target Notebook | Hardware & CU Rate | Core Models & Purpose |
 | :--- | :--- | :--- | :--- |
-| **Option 2 (Performance — Primary)** | [`notebooks/colab_ollama_mcp.ipynb`](notebooks/colab_ollama_mcp.ipynb) | **Tesla T4 (16GB VRAM)** | **`deepseek-r1:14b`** (Planning CoT) + **`qwen2.5-coder:14b` ⭐** (Coding/Workflow/Diagram). Tốn ~1.53 CU/h, dùng 3–4h/ngày suốt 30 ngày (hết ~160/192 CU). |
-| **Option 1 (Saver — Fallback)** | [`notebooks/colab_ollama_t4_saver.ipynb`](notebooks/colab_ollama_t4_saver.ipynb) | **Tesla T4 (16GB VRAM)** | **`deepseek-r1:8b`** (Planning) + **`llama3.1:8b`** (Workflow) + **`qwen2.5-coder:7b`** (Coding). Siêu nhẹ, tốc độ 65 tok/s, chủ động chuyển sang bất kỳ lúc nào để tiết kiệm CU. |
-| **Combo 2 (A100 Max Power)** | [`notebooks/colab_ollama_a100_max.ipynb`](notebooks/colab_ollama_a100_max.ipynb) | **NVIDIA A100 (40GB VRAM)** | **`deepseek-r1:32b`** + **`qwen2.5-coder:32b`** + **`14b`** + **`minicpm-v`**. Chạy sprint tập trung 1–1.5h (~5.38 CU/h). |
+| 📘 **Tutorial (Starter 1-Model)** | [`notebooks/colab_ollama_tutorial.ipynb`](notebooks/colab_ollama_tutorial.ipynb) | **Tesla T4 (16GB VRAM)** • `~1.53 CU/h` | **`qwen2.5-coder:14b` ⭐** — Bản hướng dẫn cơ bản nhất (1 model) cho người mới làm quen hoặc test kết nối MCP nhanh gọn. |
+| 🏆 **Plan 1: Performance (Chế độ Chuẩn T4)** | [`notebooks/colab_ollama_plan1_performance_t4.ipynb`](notebooks/colab_ollama_plan1_performance_t4.ipynb) | **Tesla T4 (16GB VRAM)** • `~1.53 CU/h` | **Đầu $\rightarrow$ Giữa/Cuối tháng (`> 35 CU`):** **`deepseek-r1:14b`** (Nhạc Trưởng) + **`qwen2.5-coder:14b` ⭐** (Chuyên Gia). 82% VRAM (`13.0/15.84 GB`), ~1.8s switch qua 16GB NVMe Swap + RAM Page Cache. |
+| 🚀 **Plan 1: Performance (Chế độ Đỉnh A100)** | [`notebooks/colab_ollama_plan1_performance_a100.ipynb`](notebooks/colab_ollama_plan1_performance_a100.ipynb) | **NVIDIA A100 (40GB VRAM)** • `~5.38 CU/h` | **Bài toán cực khó (`> 35 CU`):** **Dual-Resident (`MAX_LOADED=2`, `0.0s` switch!)** ghim đồng thời **`deepseek-r1:14b`** + **`qwen2.5-coder:32b` 🏆** (kèm công tắc 1 dòng đổi sang **`qwen3-coder:30b`** MoE 130 tok/s). Đỉnh VRAM `34.5/40 GB` (86%). |
+| ⚡ **Plan 2: Fast (Dual-Resident T4 Siêu Tốc)** | [`notebooks/colab_ollama_plan2_fast_t4.ipynb`](notebooks/colab_ollama_plan2_fast_t4.ipynb) | **Tesla T4 (16GB VRAM)** • `~1.53 CU/h` | **Cuối tháng (`< 35 CU`) hoặc cần tốc độ 65–75 tok/s:** **Dual-Resident trên T4 (`MAX_LOADED=2`, `0.0s` switch!)** ghim đồng thời **`deepseek-r1:8b`** + **`qwen2.5-coder:7b` ⭐** (kèm công tắc sang **`qwen3-coder:8b`**). Đỉnh VRAM `12.7/15.84 GB` (80.2%). |
 
 #### Step 1: Open Your Chosen Notebook & Connect to a Remote Colab GPU Kernel
-1. Open [`notebooks/colab_ollama_mcp.ipynb`](notebooks/colab_ollama_mcp.ipynb) (hoặc [`notebooks/colab_ollama_t4_saver.ipynb`](notebooks/colab_ollama_t4_saver.ipynb) / [`notebooks/colab_ollama_a100_max.ipynb`](notebooks/colab_ollama_a100_max.ipynb)) inside **Antigravity IDE**.
+1. Open your chosen notebook (e.g., [`notebooks/colab_ollama_plan1_performance_t4.ipynb`](notebooks/colab_ollama_plan1_performance_t4.ipynb), [`notebooks/colab_ollama_plan2_fast_t4.ipynb`](notebooks/colab_ollama_plan2_fast_t4.ipynb), or [`notebooks/colab_ollama_tutorial.ipynb`](notebooks/colab_ollama_tutorial.ipynb)) inside **Antigravity IDE**.
 2. Click **Select Kernel** in the top-right corner of the notebook editor.
 3. Choose **Colab** (or *Select Another Kernel $\rightarrow$ Colab*) $\rightarrow$ **New Colab Server** $\rightarrow$ Select **GPU (`T4` or `A100`)**.
    *(You can now completely close Chrome/Safari to save 2–4 GB of local RAM!)*
@@ -188,12 +193,12 @@ Because Antigravity IDE includes the official **Google Colab** (`google.colab`) 
    - Open the **Resources** view (`colab-server-resource-view`) to watch real-time **System RAM**, **GPU VRAM**, and **Disk usage** progress bars updating live!
    - You can also open the **Contents** view (`colab-server-content-view`) right above it to browse `/content` files on the Colab server, or run `Cmd+Shift+P` $\rightarrow$ **`Colab: Open Terminal`** to open an interactive shell on the Colab VM.
 
-#### Step 2: Run All Cells to Provision Ollama & `qwen2.5-coder:14b`
+#### Step 2: Run All Cells to Provision Ollama & Pin Models in GPU VRAM
 1. Click **Run All** (`▶️▶️`) at the top of the notebook editor.
-2. Wait ~2 minutes while Colab installs Ollama, pulls **`qwen2.5-coder:14b` ⭐** into GPU VRAM, and launches the Cloudflare Quick Tunnel.
+2. Wait ~2 minutes while Colab configures the 16GB NVMe Swapfile, installs Ollama with Flash Attention + `q8_0` KV cache, pulls your Plan's models into GPU VRAM, and launches the Cloudflare Quick Tunnel.
 3. At the bottom of **Step 5**, copy the generated `https://xxxx-xxxx.trycloudflare.com` URL (or the one-line terminal command):
    ```bash
-   python3 /Users/marchhygge/MarchHygge/project/colab-ollama-mcp/colab_ollama_mcp/server.py --set-endpoint https://xxxx-xxxx.trycloudflare.com
+   python3 colab_ollama_mcp/server.py --set-endpoint https://xxxx-xxxx.trycloudflare.com
    ```
 
 #### Step 3: Connect & Switch to Colab GPU (Choose Either Way!)
@@ -201,23 +206,23 @@ Because Antigravity IDE includes the official **Google Colab** (`google.colab`) 
 Once **Step 5** outputs your `https://xxxx-xxxx.trycloudflare.com` URL, you can connect using **whichever method you prefer**:
 
 - **🚀 Way 1 — Drop the Link Directly into Your Running `agy` CLI / IDE Chat:**
-  Simply copy and paste the raw `https://xxxx-xxxx.trycloudflare.com` URL straight into your active `agy` chat!
-  Thanks to the built-in `ollama_set_endpoint` MCP tool and `.agents/rules/colab-auto-switch.md`, the running `agy` agent will automatically:
+  Simply copy and paste the raw `https://xxxx-xxxx.trycloudflare.com` URL straight into your active `agy` / IDE chat!
+  Thanks to the built-in `ollama_set_endpoint` MCP tool, the running agent will automatically:
   1. Save the new URL into `~/.gemini/config/mcp_config.json` and `configs/antigravity_mcp_config.json`,
   2. Run a live health check (`ONLINE`, latency in `ms`, installed models), and
-  3. Immediately switch to routing your coding tasks through `ollama_chat` (`qwen2.5-coder:14b` on Colab GPU)!
+  3. Immediately switch to routing your coding tasks through `ollama_chat`!
 
-- **⚡ Way 2 — Run the One-Line Command in Your Mac Terminal:**
-  Paste and run the command printed by Step 5 in any terminal tab:
+- **⚡ Way 2 — Run the One-Line Command in Your Terminal:**
+  Paste and run the command printed by Step 5 in your project root directory:
   ```bash
-  python3 /Users/marchhygge/MarchHygge/project/colab-ollama-mcp/colab_ollama_mcp/server.py --set-endpoint https://xxxx-xxxx.trycloudflare.com
+  python3 colab_ollama_mcp/server.py --set-endpoint https://xxxx-xxxx.trycloudflare.com
   ```
   Output:
   ```text
-  ✅ Updated MCP config: /Users/marchhygge/.gemini/config/mcp_config.json
+  ✅ Updated MCP config: ~/.gemini/config/mcp_config.json
   ✅ Updated MCP config: .../configs/antigravity_mcp_config.json
   🎉 ONLINE & SWITCHED! Connected to Colab GPU at https://xxxx-xxxx.trycloudflare.com (185 ms).
-  Active Models: qwen2.5-coder:14b
+  Active Models: qwen2.5-coder:14b, deepseek-r1:14b
   Ready to route coding tasks through `ollama_chat`!
   ```
 
@@ -231,7 +236,7 @@ Once **Step 5** outputs your `https://xxxx-xxxx.trycloudflare.com` URL, you can 
 
 ### Option B (Web Browser Fallback): Safari vs. Chrome RAM Optimization
 
-If you prefer running [`notebooks/colab_ollama_mcp.ipynb`](notebooks/colab_ollama_mcp.ipynb) in a web browser at [colab.research.google.com](https://colab.research.google.com/):
+If you prefer running [`notebooks/colab_ollama_plan1_performance_t4.ipynb`](notebooks/colab_ollama_plan1_performance_t4.ipynb) (or any notebook in `notebooks/`) in a web browser at [colab.research.google.com](https://colab.research.google.com/):
 
 > [!TIP]
 > **💡 Golden Tip for macOS (18GB RAM): Use Safari Instead of Google Chrome**
@@ -258,7 +263,7 @@ Once connected, `colab-ollama` exposes 4 tools to your IDE / CLI assistant:
 
 ---
 
-## 🎓 7. Interactive Explainer & Knowledge Base
+## 🎓 7. Interactive Explainers & Simulators
 
 Want to understand **every single line of code** from business motivation down to OS pipes and JSON-RPC packets?
 
@@ -272,11 +277,6 @@ Want to understand **every single line of code** from business motivation down t
   - **Chronological Sequence Timeline** across all 6 system lifelines synchronized with a **9-step packet player**.
   - **Line-by-line interactive code debugger** for all 5 core functions in `server.py` (`get_endpoint`, `main`, `handle_request`, `call_ollama_api`, `send_response`).
   - Clickable inline technical glossary with full acronym expansions, OS/network mechanics, and real-world analogies.
-
-- **Obsidian Knowledge Base (`.agents/knowledge-base/`):**
-  - `01-architecture/`: System architecture (`ARC-01`), tunnel security (`ARC-02`), and zero-token fallback playbook (`ARC-03`).
-  - `02-colab-runtime/`: GPU setup (`COLAB-01`), anti-idle & macOS RAM optimization (`COLAB-02`), and Cloudflare Tunnel automation (`COLAB-03`).
-  - `03-mcp-server/`: MCP protocol design (`MCP-01`), IDE client configurations (`MCP-02`), and zero-dependency code walkthrough (`MCP-03`).
 
 ---
 
@@ -329,44 +329,49 @@ Every code block or response generated by Qwen on Colab can be verified by the e
 
 ---
 
-## 🎼 9. Conductor & Worker Subagent Protocol (State Handoff)
+## 🎼 9. Conductor & Worker Subagent Protocol (Plan 1 & Plan 2)
 
-To eliminate the **15–40s model-swapping latency** and **KV Cache wipeout** on Google Colab GPU (Tesla T4 with 12.67GB System RAM), `colab-ollama-mcp` adopts the **Conductor & Worker Subagent Architecture** (mirroring Claude Code & Antigravity subagent routing):
+To eliminate the **15–40s model-swapping latency** and **KV Cache wipeout** on Google Colab GPU (Tesla T4 with 12.67GB System RAM or A100 with 40GB VRAM), `colab-ollama-mcp` uses a **2-Model Conductor & Worker Protocol** with **Dual-Resident VRAM** and **Pre-Sliced Checklist State Handoff (`≤ 1,200 tokens`)**:
 
-### The 2 Roles
+### 🔄 Anti-Context-Loss Execution Flow (Applies to Both Plan 1 & Plan 2)
+1. **Step 1 — Conductor (Model 1: `deepseek-r1`) runs ONCE at the start of a feature:**
+   - Receives your requirement $\rightarrow$ runs `<think>` CoT reasoning $\rightarrow$ slices the entire feature into an ordered checklist `T1 [Coding] -> T2 [Coding] -> T3 [Workflow/Test] -> T4 [Diagram]` inside a compact State Handoff (`≤ 1,200 tokens`).
+2. **Step 2 — Worker Specialist (Model 2: `qwen2.5-coder` / `qwen3-coder`) runs continuously from `T1 -> T4`:**
+   - The static shared context prefix of the handoff stays identical across `T1 -> T4`, so Ollama **reuses 100% of the KV Cache Prefix** (`< 0.15s` prefill per task, **0 model swaps**).
+   - In **Plan 1 (A100)** and **Plan 2 (Fast T4)**, `OLLAMA_MAX_LOADED_MODELS="2"` pins **both Model 1 and Model 2 inside GPU VRAM simultaneously (`0.0s` switch latency!)**.
 
-```text
-┌────────────────────────────────────────────────────────────────────────┐
-│  1. CONDUCUTOR (Nhạc Trưởng — Planning & Problem Analysis)             │
-│  • Direct communication with developer in chat.                        │
-│  • Uses CoT reasoning (<think>) to diagnose bugs and design structure. │
-│  • Produces a compact STATE HANDOFF contract:                          │
-│    📂 .agents/kb/HANDOFF.md (Strictly ≤ 1,500 tokens)                  │
-├────────────────────────────────────────────────────────────────────────┤
-│  2. WORKER SPECIALIST (Chuyên Gia — Coding, Workflow, Diagram)         │
-│  • Reads ONLY the 1,500-token State Handoff contract.                  │
-│  • Never reads bloated 30,000-token chat history.                      │
-│  • Prefill Latency: < 0.3s (Instant!).                                 │
-│  • VRAM Memory Footprint: < 0.15 GB (Zero System RAM bloat).           │
-│  • Writes precise code diffs, unit tests, and Mermaid.js diagrams.     │
-└────────────────────────────────────────────────────────────────────────┘
-```
+---
 
-### Notebook Suite Mapping
+### 🏆 PLAN 1: PERFORMANCE (Early $\rightarrow$ Mid/Late Month when `CU > 35`)
 
-| Profile | Target Notebook | Conductor (Planning) | Worker (Coding & Diagram) | Hardware & CU Rate |
-| :--- | :--- | :--- | :--- | :--- |
-| **Option 2 (Performance — Primary)** | [`notebooks/colab_ollama_mcp.ipynb`](notebooks/colab_ollama_mcp.ipynb) | `deepseek-r1:14b` | `qwen2.5-coder:14b` ⭐ | Tesla T4 (~1.53 CU/h, 3–4h/day for 30 days) |
-| **Option 1 (Saver — Fallback)** | [`notebooks/colab_ollama_t4_saver.ipynb`](notebooks/colab_ollama_t4_saver.ipynb) | `deepseek-r1:8b` | `qwen2.5-coder:7b` + `llama3.1:8b` | Tesla T4 (~1.53 CU/h, ultra-light 65 tok/s) |
-| **Combo 2 (A100 Max Power)** | [`notebooks/colab_ollama_a100_max.ipynb`](notebooks/colab_ollama_a100_max.ipynb) | `deepseek-r1:32b` | `qwen2.5-coder:32b` + `14b` + `minicpm-v` | NVIDIA A100 (~5.38 CU/h, 1–1.5h sprint) |
+> **Goal:** Maximum code quality, multi-file refactoring, and deep architectural reasoning. Adapts to your daily GPU choice (**Tesla T4 16GB** at `~1.53 CU/h` for daily work, or **NVIDIA A100 40GB** at `~5.38 CU/h` for hard architectural sprints).
 
-### Memory & System Safeguards
+| Task Scope | Protocol Role | Standard Mode: Tesla T4 (16GB VRAM)<br>[`colab_ollama_plan1_performance_t4.ipynb`](notebooks/colab_ollama_plan1_performance_t4.ipynb) • `~1.53 CU/h` | Peak Mode: NVIDIA A100 (40GB VRAM)<br>[`colab_ollama_plan1_performance_a100.ipynb`](notebooks/colab_ollama_plan1_performance_a100.ipynb) • `~5.38 CU/h` |
+| :--- | :--- | :--- | :--- |
+| **1. Planning & Reasoning** | 🎼 **Model 1 — Conductor**<br>*(Runs 1x at start to emit `T1..Tn` checklist)* | **`deepseek-r1:14b`**<br>*(~9.0 GB VRAM • Deep `<think>` CoT)* | **`deepseek-r1:14b`**<br>*(~9.0 GB VRAM • Co-resident in VRAM with Model 2!)* |
+| **2. Coding (80% Core)** | 🛠️ **Model 2 — Worker Specialist**<br>*(Executes `T1 -> Tn`, writes code & unit tests)* | **`qwen2.5-coder:14b` ⭐**<br>*(~9.5 GB VRAM • Dense 14.7B, ~35 tok/s)* | **`qwen2.5-coder:32b` 🏆** *(~19.8 GB Dense 32.5B)*<br>*(Includes 1-line toggle `USE_QWEN3_MOE=True` for **`qwen3-coder:30b`** at 130 tok/s)* |
+| **3. Workflow (CLI / JSON)** | 🛠️ **Model 2 — Worker Specialist** *(0 swaps)* | **`qwen2.5-coder:14b`** | **`qwen2.5-coder:32b`** *(or `qwen3-coder:30b`)* |
+| **4. Diagram (Mermaid.js)** | 🛠️ **Model 2 — Worker Specialist** *(0 swaps)* | **`qwen2.5-coder:14b`** | **`qwen2.5-coder:32b`** *(or `qwen3-coder:30b`)* |
+| **VRAM & Context Safeguards** | **82% – 86% VRAM Utilization (`0%` OOM)** | • `OLLAMA_MAX_LOADED_MODELS="1"`<br>• `FLASH_ATTENTION="1"` + `KV_CACHE="q8_0"`<br>• Peak VRAM (16K ctx): **`13.0 / 15.84 GB` (82%)**<br>• Switch latency: **`~1.8s`** *(16GB NVMe Swap + Warmup RAM Page Cache, swaps only 1x from M1 $\rightarrow$ M2)* | • **`OLLAMA_MAX_LOADED_MODELS="2"` (Dual-Resident!)**<br>• `FLASH_ATTENTION="1"` + `KV_CACHE="q8_0"`<br>• Peak VRAM (32K ctx): **`9.0 + 19.8 + 5.7 = 34.5 / 40 GB` (86%)**<br>• Switch latency: **`0.0s`!** *(Both models stay pinned in A100 VRAM together)* |
+
+---
+
+### ⚡ PLAN 2: FAST (Late Month when `CU < 35`, or Ultra-Fast 65–75 tok/s Coding)
+
+> **Goal:** Instant prefill (`< 0.2s`), blazing 65–75 tok/s code generation, minimal CU burn (`~1.53 CU/h` on Tesla T4), and **Dual-Resident VRAM on T4** (removes legacy `llama3.1:8b` so both Model 1 and Model 2 stay pinned inside 16GB VRAM simultaneously with **0 evictions**).
+
+| Task Scope | Protocol Role | Locked Configuration on Tesla T4 (16GB VRAM)<br>[`colab_ollama_plan2_fast_t4.ipynb`](notebooks/colab_ollama_plan2_fast_t4.ipynb) • `~1.53 CU/h` |
+| :--- | :--- | :--- |
+| **1. Planning & Reasoning** | 🎼 **Model 1 — Conductor**<br>*(Fast checklist, bug & edge-case analysis)* | **`deepseek-r1:8b`**<br>*(~5.2 GB VRAM • High-speed `<think>` reasoning at ~55 tok/s)* |
+| **2. Coding (80% Core)** | 🛠️ **Model 2 — Worker Specialist**<br>*(Implement code, fix bugs, write tests at high speed)* | **`qwen2.5-coder:7b` ⭐** *(~4.5 GB VRAM • 65–75 tok/s)*<br>*(Includes 1-line toggle `USE_QWEN3_CODER=True` for **`qwen3-coder:8b`** ~5.5 GB)* |
+| **3. Workflow (CLI / JSON)** | 🛠️ **Model 2 — Worker Specialist**<br>*(Removed `llama3.1:8b` to prevent VRAM eviction!)* | **`qwen2.5-coder:7b`** *(Stays pinned in VRAM — 0 swaps)* |
+| **4. Diagram (Mermaid.js)** | 🛠️ **Model 2 — Worker Specialist** | **`qwen2.5-coder:7b`** *(Stays pinned in VRAM — 0 swaps)* |
+| **VRAM & Context Safeguards** | **80.2% VRAM Utilization (Dual-Resident on T4!)** | • **`OLLAMA_MAX_LOADED_MODELS="2"` (Breakthrough!)**<br>• `OLLAMA_FLASH_ATTENTION="1"` + `OLLAMA_KV_CACHE_TYPE="q8_0"`<br>• Peak VRAM (16K ctx): **`5.2 GB (M1) + 4.5 GB (M2) + 3.0 GB (KV) = 12.7 / 15.84 GB` (80.2% VRAM)**<br>• Switch latency: **`0.0s`!** *(Both `deepseek-r1:8b` and `qwen2.5-coder:7b` co-reside in T4 16GB VRAM all session!)* |
+
+---
+
+### 🛡️ Memory & System Safeguards Across All 4 Notebooks
 1. **Linux 16GB NVMe Swapfile:** Every notebook automatically runs `!test -f /swapfile || (fallocate -l 16G /swapfile ...)` to expand Colab virtual memory to **28.67 GB**, eliminating 100% of OOM Killer risks.
-2. **Flash Attention & 8-bit KV Cache:** Daemon runs with `OLLAMA_FLASH_ATTENTION=1` and `OLLAMA_KV_CACHE_TYPE=q8_0` to cut VRAM usage by 50%.
-3. **Shared Knowledge Base (`.agents/kb/`):**
-   - [`HANDOFF_TEMPLATE.md`](.agents/kb/HANDOFF_TEMPLATE.md): Standard contract format for task handoff.
-   - [`ARCHITECTURE.md`](.agents/kb/ARCHITECTURE.md): Active system specifications.
-   - [`TASKS.md`](.agents/kb/TASKS.md): Step-by-step task tracking.
-   - [`conductor-subagent-workflow.md`](.agents/rules/conductor-subagent-workflow.md): Agent execution rules.
-
-
+2. **Flash Attention & 8-bit KV Cache:** Daemon runs with `OLLAMA_FLASH_ATTENTION=1` and `OLLAMA_KV_CACHE_TYPE=q8_0` to cut VRAM context usage by 50%.
+3. **Cloudflared Pipe Drain Daemon:** Every notebook runs a background daemon thread draining `tunnel_proc.stdout` after capturing the `*.trycloudflare.com` URL, preventing the 64KB OS pipe buffer deadlock during long sessions.
+4. **Local Agent Customization (`.agents/` — Gitignored):** Store your own local IDE rules, skills, and state handoff files (e.g., `.agents/kb/HANDOFF.md`) in `.agents/` without polluting version control.
