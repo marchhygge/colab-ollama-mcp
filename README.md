@@ -160,7 +160,6 @@ colab-ollama-mcp/
 │   └── test_server.py               # Pure-stdlib unittest suite for MCP server & JSON-RPC handlers
 ├── docs/
 │   └── explainer.html               # Interactive self-contained HTML visual guide (Business -> Code)
-├── report.html                      # Interactive 5-tab setup wizard, CU ROI calculator & VRAM simulator
 ├── pyproject.toml                   # Python packaging metadata
 └── README.md                        # Project documentation (this file)
 ```
@@ -278,12 +277,6 @@ Want to understand **every single line of code** from business motivation down t
   - **Chronological Sequence Timeline** across all 6 system lifelines synchronized with a **9-step packet player**.
   - **Line-by-line interactive code debugger** for all 5 core functions in `server.py` (`get_endpoint`, `main`, `handle_request`, `call_ollama_api`, `send_response`).
   - Clickable inline technical glossary with full acronym expansions, OS/network mechanics, and real-world analogies.
-
-- **Interactive Setup Wizard & GPU Simulator (`report.html`):**
-  Open [`report.html`](report.html) for the 5-tab Colab Setup Wizard, Compute Unit (CU) ROI Calculator, and VRAM Quantization Simulator:
-  ```bash
-  open report.html
-  ```
 
 ---
 

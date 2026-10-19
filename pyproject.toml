@@ -22,10 +22,17 @@ classifiers = [
 ]
 dependencies = []
 
+[project.optional-dependencies]
+dev = ["pytest", "coverage", "ruff", "mypy"]
+
 [project.scripts]
 colab-ollama-mcp = "colab_ollama_mcp.server:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["colab_ollama_mcp*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
 

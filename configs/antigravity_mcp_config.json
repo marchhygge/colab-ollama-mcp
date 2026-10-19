@@ -1,4 +1,5 @@
 {
+  "_comment": "Antigravity IDE MCP Configuration — copy or symlink to ~/.gemini/config/mcp_config.json",
   "mcpServers": {
     "colab-ollama": {
       "command": "python3",
@@ -8,7 +9,12 @@
         "https://YOUR-TUNNEL-URL.trycloudflare.com",
         "--model",
         "qwen2.5-coder:14b"
-      ]
+      ],
+      "env": {
+        "OLLAMA_ENDPOINT": "https://YOUR-TUNNEL-URL.trycloudflare.com",
+        "OLLAMA_MODEL": "qwen2.5-coder:14b",
+        "OLLAMA_TIMEOUT": "180"
+      }
     }
   }
 }

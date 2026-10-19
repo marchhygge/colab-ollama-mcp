@@ -128,6 +128,31 @@ def validate_endpoint_url(url: str) -> Tuple[bool, str]:
     return True, candidate
 
 
+class _SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """
+    Custom HTTP redirect handler that validates every HTTP 3xx redirect target URL
+    via `validate_endpoint_url()` before following it, preventing SSRF redirect bypasses
+    to private LAN, loopback, or cloud metadata endpoints (`169.254.169.254`).
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        resolved_url = urllib.parse.urljoin(getattr(req, "full_url", ""), newurl)
+        is_valid, validation_msg = validate_endpoint_url(resolved_url)
+        if not is_valid:
+            raise urllib.error.URLError(
+                f"Blocked unsafe HTTP {code} redirect to '{resolved_url}': {validation_msg}"
+            )
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def build_safe_opener() -> urllib.request.OpenerDirector:
+    """Build and return a urllib OpenerDirector configured with `_SafeRedirectHandler`."""
+    return urllib.request.build_opener(_SafeRedirectHandler())
+
+
+urllib.request.install_opener(build_safe_opener())
+
+
 def get_endpoint() -> str:
     """
     Resolve the active Cloudflare Tunnel URL dynamically (supports hot-reload without restarting IDE).
@@ -187,6 +212,10 @@ def fetch_available_models(
         use_cache = timeout
         timeout = 15
 
+    is_valid, validation_msg = validate_endpoint_url(endpoint)
+    if not is_valid:
+        raise ValueError(f"Invalid endpoint URL '{endpoint}': {validation_msg}")
+
     cache_key = endpoint.strip().rstrip("/")
     now = time.time()
     current_urlopen_id = id(urllib.request.urlopen)
@@ -217,7 +246,11 @@ def fetch_running_models(endpoint: str, timeout: int = 10) -> List[Dict[str, Any
     in GPU VRAM, including exact VRAM consumption (`size_vram`), total weight size (`size`),
     and processor offload ratio (GPU vs. CPU RAM).
     """
-    url = f"{endpoint.rstrip('/')}/api/ps"
+    is_valid, validation_msg = validate_endpoint_url(endpoint)
+    if not is_valid:
+        raise ValueError(f"Invalid endpoint URL '{endpoint}': {validation_msg}")
+
+    url = f"{endpoint.strip().rstrip('/')}/api/ps"
     req = urllib.request.Request(
         url,
         headers={"Accept": "application/json", "User-Agent": f"{SERVER_NAME}/{SERVER_VERSION}"},
@@ -500,9 +533,12 @@ def handle_request(line: str, endpoint: str) -> None:
       5. `tools/call`                -> Execute the requested tool (`ollama_chat`, `ollama_list_models`, etc.).
     """
     try:
-        req = json.loads(line)
+        req = line if isinstance(line, dict) else json.loads(line)
     except Exception:
         # Ignore malformed non-JSON lines
+        return
+
+    if not isinstance(req, dict):
         return
 
     req_id = req.get("id")
@@ -541,9 +577,11 @@ def handle_request(line: str, endpoint: str) -> None:
         try:
             # Dynamically hot-reload the latest tunnel URL from config on every call (zero IDE reload needed)
             endpoint = get_endpoint()
-            params = req.get("params", {}) or {}
+            raw_params = req.get("params")
+            params = raw_params if isinstance(raw_params, dict) else {}
             tool_name = params.get("name", "")
-            args = params.get("arguments", {}) or {}
+            raw_args = params.get("arguments")
+            args = raw_args if isinstance(raw_args, dict) else {}
 
             if tool_name == "ollama_chat":
                 prompt = args.get("prompt", "")
@@ -757,14 +795,33 @@ def main() -> None:
     Main event loop maintaining the long-lived MCP server subprocess.
 
     Technical mechanics:
+      - If invoked with `-h` or `--help`, prints CLI usage instructions and exits.
       - If invoked with `--set-endpoint <URL>`, updates MCP config files and exits.
       - If invoked with `--status`, prints live tunnel latency and GPU VRAM usage and exits.
       - Otherwise, resolves the Cloudflare Tunnel endpoint via `get_endpoint()`.
       - Iterates over `sys.stdin` using OS kernel blocking I/O (consumes 0% CPU while waiting).
       - Automatically exits cleanly when the parent IDE closes the pipe (`EOF`).
     """
-    for i, arg in enumerate(sys.argv):
-        if arg == "--set-endpoint" and i + 1 < len(sys.argv):
+    for i, arg in enumerate(sys.argv[1:], start=1):
+        if arg in ("-h", "--help"):
+            print(
+                "Usage: colab-ollama-mcp [--endpoint <URL>] [--model <MODEL>] "
+                "[--set-endpoint <URL>] [--status] [-h|--help]\n\n"
+                "Options:\n"
+                "  --endpoint <URL>       Set active Cloudflare Quick Tunnel URL for this session\n"
+                "  --model <MODEL>        Override default Ollama model tag (default: qwen2.5-coder:14b)\n"
+                "  --set-endpoint <URL>   Persist tunnel URL to MCP configs, verify GPU status, and exit\n"
+                "  --status               Print live tunnel latency and Colab GPU VRAM telemetry and exit\n"
+                "  -h, --help             Show this help message and exit"
+            )
+            return
+        if arg == "--set-endpoint":
+            if i + 1 >= len(sys.argv) or not sys.argv[i + 1].strip() or sys.argv[i + 1].startswith("-"):
+                print(
+                    "❌ Error: '--set-endpoint' requires a URL argument "
+                    "(e.g., --set-endpoint https://xxxx.trycloudflare.com)."
+                )
+                return
             set_endpoint_in_configs(sys.argv[i + 1])
             return
         if arg == "--status":

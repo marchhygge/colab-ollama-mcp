@@ -1,4 +1,5 @@
 {
+  "_comment": "Claude Desktop MCP Configuration — copy to ~/Library/Application Support/Claude/claude_desktop_config.json (macOS) or %APPDATA%\\Claude\\claude_desktop_config.json (Windows)",
   "mcpServers": {
     "colab-ollama": {
       "command": "python3",
@@ -8,7 +9,12 @@
         "https://YOUR-TUNNEL-URL.trycloudflare.com",
         "--model",
         "qwen2.5-coder:14b"
-      ]
+      ],
+      "env": {
+        "OLLAMA_ENDPOINT": "https://YOUR-TUNNEL-URL.trycloudflare.com",
+        "OLLAMA_MODEL": "qwen2.5-coder:14b",
+        "OLLAMA_TIMEOUT": "180"
+      }
     }
   }
 }
