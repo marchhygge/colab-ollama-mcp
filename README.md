@@ -13,14 +13,15 @@
 1. [Overview & Architecture](#-1-overview--architecture)
 2. [Notebook Suite: Plan 1 vs. Plan 2](#-2-notebook-suite-plan-1-vs-plan-2)
 3. [Repository Structure](#-3-repository-structure)
-4. [Quickstart Setup Guide](#-4-quickstart-setup-guide)
+4. [Documentation](#-4-documentation)
+5. [Quickstart Setup Guide](#-5-quickstart-setup-guide)
    - [Way 1: Drop Link into IDE Chat](#-way-1-drop-the-tunnel-url-directly-into-chat-instant)
    - [Way 2: Terminal One-Liner](#-way-2-run-the-cli-helper-command)
    - [Running in IDE vs. Web Browser](#running-directly-in-ide-vs-browser-fallback)
-5. [Available MCP Tools](#-5-available-mcp-tools)
-6. [Conductor & Worker Protocol (Dual-Resident VRAM)](#-6-conductor--worker-protocol-dual-resident-vram)
-7. [Inference Verification & FAQ](#-7-inference-verification--faq)
-8. [Interactive Explainer](#-8-interactive-explainer)
+6. [Available MCP Tools](#-6-available-mcp-tools)
+7. [Conductor & Worker Protocol (Dual-Resident VRAM)](#-7-conductor--worker-protocol-dual-resident-vram)
+8. [Inference Verification & FAQ](#-8-inference-verification--faq)
+9. [Interactive Explainer](#-9-interactive-explainer)
 
 ---
 
@@ -124,6 +125,10 @@ colab-ollama-mcp/
 ├── tests/
 │   └── test_server.py               # Stdlib unittest suite for MCP server & JSON-RPC
 ├── docs/
+│   ├── architecture.md              # System architecture, stdio protocol & tunnel design
+│   ├── conductor-worker.md          # Conductor-Worker subagent protocol & state handoff
+│   ├── colab-runtime.md             # Colab GPU provisioning, swapfile & keep-alive
+│   ├── model-selection.md           # Model matrix, CU budget tradeoffs & quant profiles
 │   └── explainer.html               # Interactive HTML visual guide & packet debugger
 ├── pyproject.toml                   # Python packaging metadata
 └── README.md                        # Project documentation
@@ -131,7 +136,21 @@ colab-ollama-mcp/
 
 ---
 
-## ⚡ 4. Quickstart Setup Guide
+## 📚 4. Documentation
+
+Comprehensive technical guides, architectural specifications, and interactive visual aids are available in the [`docs/`](docs/) directory:
+
+| Guide | Focus Area | Description |
+| :--- | :--- | :--- |
+| [**Architecture & System Flow**](docs/architecture.md) | Architecture (`ARC-01`) | Pure stdlib MCP server design, JSON-RPC 2.0 stdio transport, Cloudflare Quick Tunnel routing, and end-to-end packet latency mechanics. |
+| [**Conductor & Worker Protocol**](docs/conductor-worker.md) | Agent Orchestration (`ARC-04`) | State handoff contract (`HANDOFF.md`), dual-resident VRAM pinning (`OLLAMA_MAX_LOADED_MODELS=2`), zero-overhead model switching, and KV cache prefix reuse. |
+| [**Colab Runtime & GPU Provisioning**](docs/colab-runtime.md) | Cloud Infrastructure (`COLAB-01`) | Tesla T4 vs. A100 environment setup, 16GB NVMe swapfile OOM protection, background keep-alive daemons, and headless tunnel lifecycle management. |
+| [**Model Selection Matrix**](docs/model-selection.md) | Compute & Models | Compute Unit (CU) budget allocation, Plan 1 Performance vs. Plan 2 Fast profiles, `Q4_K_M` quantizations, and context window limits. |
+| [**Interactive Visual Explainer**](docs/explainer.html) | Visual Explainer & Debugger | Standalone HTML web application featuring dynamic tradeoff matrices, packet-level sequence simulators, and interactive code inspectors (`open docs/explainer.html`). |
+
+---
+
+## ⚡ 5. Quickstart Setup Guide
 
 ### Step 1: Launch Notebook on Colab GPU
 1. Open your chosen notebook in **Antigravity IDE** (via the Google Colab extension) or at [colab.research.google.com](https://colab.research.google.com/).
@@ -167,7 +186,7 @@ Active Models: qwen2.5-coder:14b, deepseek-r1:14b
 
 ---
 
-## 🛠️ 5. Available MCP Tools
+## 🛠️ 6. Available MCP Tools
 
 The local MCP server exposes 4 tools via JSON-RPC 2.0 stdio:
 
@@ -180,7 +199,7 @@ The local MCP server exposes 4 tools via JSON-RPC 2.0 stdio:
 
 ---
 
-## 🎼 6. Conductor & Worker Protocol (Dual-Resident VRAM)
+## 🎼 7. Conductor & Worker Protocol (Dual-Resident VRAM)
 
 To eliminate the **15–40s model reload penalty** and KV cache evictions, the architecture separates planning from execution:
 
@@ -205,7 +224,7 @@ flowchart LR
 
 ---
 
-## 🔍 7. Inference Verification & FAQ
+## 🔍 8. Inference Verification & FAQ
 
 ### Host Orchestrator vs. Remote GPU Worker
 Your IDE agent (Gemini, Claude, or local reasoning model) serves as the **Host Orchestrator** managing files and planning. When coding tasks are delegated, matrix math runs remotely on the **Colab GPU Worker**.
@@ -231,7 +250,7 @@ Every remote response includes an execution signature verifying GPU offload:
 
 ---
 
-## 🎓 8. Interactive Explainer
+## 🎓 9. Interactive Explainer
 
 For a comprehensive interactive walkthrough covering the entire pipeline from business motivation to line-by-line OS pipe mechanics:
 
